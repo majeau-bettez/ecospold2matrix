@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<validIntermediateExchanges majorRelease="3" minorRelease="0" majorRevision="0" minorRevision="17035" xmlns="http://www.EcoInvent.org/EcoSpold02">
+  <intermediateExchange id="842e3faf-8de9-47a3-bfac-606edc0adbd3" unitId="5b972631-34e3-4db7-a615-f6931770a0cb">
+    <name xml:lang="en">furnace, wood chips, average storage area, 1000kW</name>
+    <unitName xml:lang="en">unit</unitName>
+    <classification classificationId="39b0f0ab-1a2f-401b-9f4d-6e39400760a4">
+      <classificationSystem xml:lang="en">By-product classification</classificationSystem>
+      <classificationValue xml:lang="en">allocatable product</classificationValue>
+    </classification>
+  </intermediateExchange>
+  <intermediateExchange id="692b4f7e-9e79-4f69-b22f-b66f68f2f9cc" unitId="487df68b-4994-4027-8fdc-a4dc298257b7">
+    <name xml:lang="en">straw, organic</name>
+    <unitName xml:lang="en">kg</unitName>
+    <classification classificationId="39b0f0ab-1a2f-401b-9f4d-6e39400760a4">
+      <classificationSystem xml:lang="en">By-product classification</classificationSystem>
+      <classificationValue xml:lang="en">allocatable product</classificationValue>
+    </classification>
+    <property propertyId="67f102e2-9cb6-4d20-aa16-bf74d8a03326" amount="1" />
+    <property propertyId="6d9e1462-80e3-4f10-b3f4-71febd6f1168" amount="0.15" />
+    <property propertyId="c74c3729-e577-4081-b572-a283d2561a75" amount="0" />
+    <property propertyId="a9358458-9724-4f03-b622-106eda248916" amount="0.176470588235294" />
+    <property propertyId="3a0af1d6-04c3-41c6-a3da-92c4f61e0eaa" amount="0.85" />
+    <property propertyId="6393c14b-db78-445d-a47b-c0cb866a1b25" amount="0.437376666666667" />
+  </intermediateExchange>
+  <intermediateExchange id="36dc50ef-017c-4d24-af51-f12ef802095e" unitId="2f4daad7-5331-4f14-930c-d8bca924557d">
+    <name xml:lang="en">transport, pipeline, offshore, long distance, natural gas</name>
+    <unitName xml:lang="en">metric ton*km</unitName>
+    <classification classificationId="39b0f0ab-1a2f-401b-9f4d-6e39400760a4">
+      <classificationSystem xml:lang="en">By-product classification</classificationSystem>
+      <classificationValue xml:lang="en">allocatable product</classificationValue>
+    </classification>
+  </intermediateExchange>
+</validIntermediateExchanges>

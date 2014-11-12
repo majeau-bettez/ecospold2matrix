@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ecoSpold xmlns="http://www.EcoInvent.org/EcoSpold02">
+  <childActivityDataset>
+    <activityDescription>
+      <activity id="d0003dc3-4bd3-4422-9c40-8265239e14ff" activityNameId="98d3159f-5742-47aa-9e32-289791cff548" parentActivityId="81d02df4-0919-4ee4-8c63-9dcea91a4165" inheritanceDepth="-1" type="1" specialActivityType="0" energyValues="0">
+        <activityName xml:lang="en">transport, pipeline, offshore, long distance, natural gas</activityName>
+        <includedActivitiesStart xml:lang="en" />
+        <includedActivitiesEnd xml:lang="en">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</includedActivitiesEnd>
+        <generalComment>
+          <text xml:lang="en" index="0">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</text>
+        </generalComment>
+        <tag>ConvertedDataset</tag>
+      </activity>
+      <classification classificationId="c86ab5a1-cf1c-48f1-80e3-96a36c56374c">
+        <classificationSystem xml:lang="en">EcoSpold01Categories</classificationSystem>
+        <classificationValue xml:lang="en">natural gas/production</classificationValue>
+      </classification>
+      <classification classificationId="4bb326bb-e3df-4d71-b77c-f9a2f7e55536">
+        <classificationSystem xml:lang="en">ISIC rev.4 ecoinvent</classificationSystem>
+        <classificationValue xml:lang="en">4930:Transport via pipeline</classificationValue>
+      </classification>
+      <geography geographyId="10f1ec30-7d7e-11de-9ae2-0019e336be3a">
+        <shortname xml:lang="en">NO</shortname>
+        <comment>
+          <text xml:lang="en" index="1">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</text>
+        </comment>
+      </geography>
+      <technology technologyLevel="3">
+        <comment>
+          <text xml:lang="en" index="1">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</text>
+        </comment>
+      </technology>
+      <timePeriod startDate="1994-01-01" endDate="2014-12-31" isDataValidForEntirePeriod="true">
+        <comment>
+          <text xml:lang="en" index="1">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</text>
+        </comment>
+      </timePeriod>
+      <macroEconomicScenario macroEconomicScenarioId="d9f57f0a-a01f-42eb-a57b-8f18d6635801">
+        <name xml:lang="en">Business-as-Usual</name>
+      </macroEconomicScenario>
+    </activityDescription>
+    <flowData>
+      <intermediateExchange id="2e07420e-30fd-46d8-8361-108bbb61b36b" unitId="de5b3c87-0e35-4fb0-9765-4f3ba34c99e5" amount="0.0000050" intermediateExchangeId="842e3faf-8de9-47a3-bfac-606edc0adbd3" activityLinkId="40011095-059d-465e-bd79-da3b6b3b8308">
+        <name xml:lang="en">furnace, wood chips, average storage area, 1000kW</name>
+        <unitName xml:lang="en">m3</unitName>
+        <comment xml:lang="en">(4,5,3,3,4,5); Estimates based on published data 1994</comment>
+        <comment>EcoSpold01Location=NO</comment>
+        <classification classificationId="39b0f0ab-1a2f-401b-9f4d-6e39400760a4">
+          <classificationSystem xml:lang="en">By-product classification</classificationSystem>
+          <classificationValue xml:lang="en">allocatable product</classificationValue>
+        </classification>
+        <inputGroup>5</inputGroup>
+      </intermediateExchange>
+      <intermediateExchange id="7795c9d4-f516-4c25-803a-450ab02fa920" unitId="2f4daad7-5331-4f14-930c-d8bca924557d" amount="1" intermediateExchangeId="36dc50ef-017c-4d24-af51-f12ef802095e" productionVolumeAmount="43440000000">
+        <name xml:lang="en">transport, pipeline, offshore, long distance, natural gas</name>
+        <unitName xml:lang="en">metric ton*km</unitName>
+        <comment>EcoSpold01Location=NO</comment>
+        <productionVolumeComment xml:lang="en">52.5 e9 Nm3
+//Comment added during dataset update://
+90500 million m3 (Norwegian production) at 0.48 tkm/m3 (from data in datasets ; ref. Ecoinvent v2 report 06_V)</productionVolumeComment>
+        <classification classificationId="39b0f0ab-1a2f-401b-9f4d-6e39400760a4">
+          <classificationSystem xml:lang="en">By-product classification</classificationSystem>
+          <classificationValue xml:lang="en">allocatable product</classificationValue>
+        </classification>
+        <outputGroup>0</outputGroup>
+      </intermediateExchange>
+      <elementaryExchange id="7033c491-ed71-414b-98cc-435768d5311a" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" casNumber="000074-82-8" amount="0.000231" elementaryExchangeId="70ef743b-3ed5-4a6d-b192-fb6d62378555">
+        <name xml:lang="en">Methane, fossil</name>
+        <unitName xml:lang="en">kg</unitName>
+        <comment xml:lang="en">(3,5,3,1,1,5); calculated based on leakage and gas composition</comment>
+        <compartment subcompartmentId="be7e06e9-0bf5-462e-99dc-fe4aee383c48">
+          <compartment xml:lang="en">air</compartment>
+          <subcompartment xml:lang="en">non-urban air or from high stacks</subcompartment>
+        </compartment>
+        <outputGroup>4</outputGroup>
+      </elementaryExchange>
+      <elementaryExchange id="b134c26d-1f74-4ef5-bf67-1c07e0737aed" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" casNumber="000353-59-3" amount="2.24E-08" elementaryExchangeId="494eb62d-3e16-4a81-b344-6d6dfd9fd4e2">
+        <name xml:lang="en">Methane, bromochlorodifluoro-, Halon 1211</name>
+        <unitName xml:lang="en">kg</unitName>
+        <comment xml:lang="en">(2,3,1,5,1,3); dutch environmental report + qualified estimates</comment>
+        <compartment subcompartmentId="be7e06e9-0bf5-462e-99dc-fe4aee383c48">
+          <compartment xml:lang="en">air</compartment>
+          <subcompartment xml:lang="en">non-urban air or from high stacks</subcompartment>
+        </compartment>
+        <outputGroup>4</outputGroup>
+      </elementaryExchange>
+    </flowData>
+    <modellingAndValidation>
+      <representativeness percent="100" systemModelId="290c1f85-4cc4-4fa1-b0c8-2cb7f4276dce">
+        <systemModelName xml:lang="en">Allocation, cut-off by classification</systemModelName>
+        <samplingProcedure xml:lang="en">statistics</samplingProcedure>
+        <extrapolations xml:lang="en">This dataset has been extrapolated from year 2000 to the year of the calculation (2014). The uncertainty has been adjusted accordingly.</extrapolations>
+      </representativeness>
+    </modellingAndValidation>
+    <administrativeInformation>
+      <dataEntryBy personId="7771deb8-4a40-4409-8bc4-df0882e8dde6" isActiveAuthor="false" personName="Niels Jungbluth" personEmail="esu-services@ecoinvent.org" />
+      <dataGeneratorAndPublication personId="167b2cd0-d5a9-492e-9c26-9616ba70d19c" personName="Mireille Faist Emmenegger (obsolete)" personEmail="esu-services@ecoinvent.org" dataPublishedIn="2" publishedSourceId="c1e37bd2-786e-4445-b36c-f90ecb7876ba" publishedSourceYear="2007" publishedSourceFirstAuthor="Faist Emmenegger, M." isCopyrightProtected="true" pageNumbers="Kap. Ferntransport" accessRestrictedTo="1" />
+      <fileAttributes majorRelease="3" minorRelease="0" majorRevision="89" minorRevision="1" internalSchemaVersion="2.0.10" defaultLanguage="en" creationTimestamp="2010-07-28T18:23:08" fileGenerator="EcoSpold01Converter" fileTimestamp="2011-02-25T10:28:41" contextId="de659012-50c4-4e96-b54a-fc781bf987ab">
+        <contextName xml:lang="en">ecoinvent</contextName>
+      </fileAttributes>
+    </administrativeInformation>
+  </childActivityDataset>
+</ecoSpold>

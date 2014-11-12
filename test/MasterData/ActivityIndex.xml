@@ -1,0 +1,7 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<activityIndex majorRelease="3" minorRelease="0" majorRevision="0" minorRevision="41545" xmlns="http://www.EcoInvent.org/EcoSpold02">
+  <activityIndexEntry id="f7e93a25-56e4-4268-a603-3bfd57c79eff" activityNameId="c2d58788-238b-464b-89c5-6b075d323033" geographyId="34dbbff8-88ce-11de-ad60-0019e336be3a" startDate="1981-01-01" endDate="2005-12-31" specialActivityType="0" systemModelId="8b738ea0-f89e-4627-8679-433616064e82" />
+  <activityIndexEntry id="40011095-059d-465e-bd79-da3b6b3b8308" activityNameId="96f5b580-45e4-482b-83d0-70bb4157eae1" geographyId="131278d6-7d7e-11de-9ae2-0019e336be3a" startDate="2000-01-01" endDate="2014-12-31" specialActivityType="0" systemModelId="290c1f85-4cc4-4fa1-b0c8-2cb7f4276dce" />
+  <activityIndexEntry id="c002d7b0-0f0f-4e3e-b600-2acd705a8506" activityNameId="a1317919-06d7-46d1-b031-4189e9788b2d" geographyId="34dbbff8-88ce-11de-ad60-0019e336be3a" startDate="2011-01-01" endDate="2014-12-31" specialActivityType="1" systemModelId="290c1f85-4cc4-4fa1-b0c8-2cb7f4276dce" />
+  <activityIndexEntry id="d0003dc3-4bd3-4422-9c40-8265239e14ff" activityNameId="98d3159f-5742-47aa-9e32-289791cff548" geographyId="10f1ec30-7d7e-11de-9ae2-0019e336be3a" startDate="1994-01-01" endDate="2014-12-31" specialActivityType="0" systemModelId="290c1f85-4cc4-4fa1-b0c8-2cb7f4276dce" />
+</activityIndex>

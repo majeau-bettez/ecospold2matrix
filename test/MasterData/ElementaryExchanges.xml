@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<validElementaryExchanges majorRelease="3" minorRelease="0" majorRevision="0" minorRevision="38722" xmlns="http://www.EcoInvent.org/EcoSpold02">
+  <elementaryExchange id="494eb62d-3e16-4a81-b344-6d6dfd9fd4e2" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" casNumber="000353-59-3">
+    <name xml:lang="en">Methane, bromochlorodifluoro-, Halon 1211</name>
+    <unitName xml:lang="en">kg</unitName>
+    <compartment subcompartmentId="be7e06e9-0bf5-462e-99dc-fe4aee383c48">
+      <compartment xml:lang="en">air</compartment>
+      <subcompartment xml:lang="en">non-urban air or from high stacks</subcompartment>
+    </compartment>
+    <property propertyId="c74c3729-e577-4081-b572-a283d2561a75" amount="0.0726334826105102" />
+    <property propertyId="a9358458-9724-4f03-b622-106eda248916" amount="0" />
+    <property propertyId="6393c14b-db78-445d-a47b-c0cb866a1b25" amount="0" />
+    <property propertyId="6d9e1462-80e3-4f10-b3f4-71febd6f1168" amount="0" />
+    <property propertyId="67f102e2-9cb6-4d20-aa16-bf74d8a03326" amount="1" />
+    <property propertyId="3a0af1d6-04c3-41c6-a3da-92c4f61e0eaa" amount="1" />
+  </elementaryExchange>
+  <elementaryExchange id="70ef743b-3ed5-4a6d-b192-fb6d62378555" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" casNumber="000074-82-8">
+    <name xml:lang="en">Methane, fossil</name>
+    <unitName xml:lang="en">kg</unitName>
+    <compartment subcompartmentId="be7e06e9-0bf5-462e-99dc-fe4aee383c48">
+      <compartment xml:lang="en">air</compartment>
+      <subcompartment xml:lang="en">non-urban air or from high stacks</subcompartment>
+    </compartment>
+    <property propertyId="6d9e1462-80e3-4f10-b3f4-71febd6f1168" amount="0" />
+    <property propertyId="6393c14b-db78-445d-a47b-c0cb866a1b25" amount="0" />
+    <property propertyId="c74c3729-e577-4081-b572-a283d2561a75" amount="0.748686634968048" />
+    <property propertyId="a9358458-9724-4f03-b622-106eda248916" amount="0">
+      <comment xml:lang="en">water mass/dry mass</comment></property>
+    <property propertyId="67f102e2-9cb6-4d20-aa16-bf74d8a03326" amount="1" />
+    <property propertyId="3a0af1d6-04c3-41c6-a3da-92c4f61e0eaa" amount="1" />
+  </elementaryExchange>
+</validElementaryExchanges>

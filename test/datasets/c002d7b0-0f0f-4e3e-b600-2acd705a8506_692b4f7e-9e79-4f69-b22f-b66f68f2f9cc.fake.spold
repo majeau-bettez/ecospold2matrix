@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ecoSpold xmlns="http://www.EcoInvent.org/EcoSpold02">
+  <childActivityDataset>
+    <activityDescription>
+      <activity id="c002d7b0-0f0f-4e3e-b600-2acd705a8506" activityNameId="a1317919-06d7-46d1-b031-4189e9788b2d" parentActivityId="09cfacc8-805e-47b3-a1ed-09686c5b4ad5" inheritanceDepth="-1" type="1" specialActivityType="1">
+        <activityName xml:lang="en">market for straw, organic</activityName>
+        <generalComment>
+          <text xml:lang="en" index="1">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</text>
+          <text xml:lang="en" index="2">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</text>
+        </generalComment>
+      </activity>
+      <classification classificationId="e2e1f67d-3393-4182-86f6-1ada2f77c3e5">
+        <classificationSystem xml:lang="en">ISIC rev.4 ecoinvent</classificationSystem>
+        <classificationValue xml:lang="en">0111:Growing of cereals (except rice), leguminous crops and oil seeds</classificationValue>
+      </classification>
+      <geography geographyId="34dbbff8-88ce-11de-ad60-0019e336be3a">
+        <shortname xml:lang="en">GLO</shortname>
+      </geography>
+      <technology technologyLevel="0" />
+      <timePeriod startDate="2011-01-01" endDate="2014-12-31" isDataValidForEntirePeriod="true" />
+      <macroEconomicScenario macroEconomicScenarioId="d9f57f0a-a01f-42eb-a57b-8f18d6635801">
+        <name xml:lang="en">Business-as-Usual</name>
+      </macroEconomicScenario>
+    </activityDescription>
+    <flowData>
+      <intermediateExchange id="54eb6ddf-edc6-4c62-8566-735b243a1ffc" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" amount="1" intermediateExchangeId="692b4f7e-9e79-4f69-b22f-b66f68f2f9cc" productionVolumeAmount="2738919600">
+        <name xml:lang="en">straw, organic</name>
+        <unitName xml:lang="en">kg</unitName>
+        <classification classificationId="39b0f0ab-1a2f-401b-9f4d-6e39400760a4">
+          <classificationSystem xml:lang="en">By-product classification</classificationSystem>
+          <classificationValue xml:lang="en">allocatable product</classificationValue>
+        </classification>
+        <outputGroup>0</outputGroup>
+      </intermediateExchange>
+      <intermediateExchange id="eae40c23-f8e3-4fb9-9059-9b3f8e59ed5c" unitId="2f4daad7-5331-4f14-930c-d8bca924557d" amount="0.00000021080" intermediateExchangeId="36dc50ef-017c-4d24-af51-f12ef802095e" activityLinkId="d0003dc3-4bd3-4422-9c40-8265239e14ff">
+        <name xml:lang="en">transport, pipeline, offshore, long distance, natural gas</name>
+        <unitName xml:lang="en">metric ton*km</unitName>
+        <comment xml:lang="en">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</comment>
+        <uncertainty>
+          <lognormal meanValue="0.01932" mu="1" variance="0.12" varianceWithPedigreeUncertainty="0.172" />
+          <pedigreeMatrix reliability="3" completeness="1" temporalCorrelation="4" geographicalCorrelation="5" furtherTechnologyCorrelation="4" />
+        </uncertainty>
+        <classification classificationId="39b0f0ab-1a2f-401b-9f4d-6e39400760a4">
+          <classificationSystem xml:lang="en">By-product classification</classificationSystem>
+          <classificationValue xml:lang="en">allocatable product</classificationValue>
+        </classification>
+        <inputGroup>5</inputGroup>
+      </intermediateExchange>
+    </flowData>
+    <modellingAndValidation>
+      <representativeness systemModelId="290c1f85-4cc4-4fa1-b0c8-2cb7f4276dce">
+        <systemModelName xml:lang="en">Allocation, cut-off by classification</systemModelName>
+        <extrapolations xml:lang="en">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</extrapolations>
+      </representativeness>
+    </modellingAndValidation>
+    <administrativeInformation>
+      <dataEntryBy personId="8eccf3fe-5531-43de-ae57-61564ca77b5a" isActiveAuthor="false" personName="Guillaume Bourgault" personEmail="bourgault@ecoinvent.org" />
+      <dataGeneratorAndPublication personId="c4597934-ecac-422c-b431-382e85fdcb83" personName="[System]" personEmail="support@ecoinvent.org" isCopyrightProtected="false" accessRestrictedTo="1" />
+      <fileAttributes majorRelease="3" minorRelease="0" majorRevision="5" minorRevision="0" internalSchemaVersion="2.0.11" defaultLanguage="en" creationTimestamp="2011-08-02T10:02:39" fileGenerator="EcoEditor 3.3.65.10874" fileTimestamp="2014-04-23T15:19:25" contextId="de659012-50c4-4e96-b54a-fc781bf987ab">
+        <contextName xml:lang="en">ecoinvent</contextName>
+      </fileAttributes>
+    </administrativeInformation>
+  </childActivityDataset>
+</ecoSpold>

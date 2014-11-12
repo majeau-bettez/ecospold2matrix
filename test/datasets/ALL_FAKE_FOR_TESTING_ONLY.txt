@@ -1,0 +1,17 @@
+Files in this folder may look like official ecoinvent files at first sight, but
+it's all fake! For testing only.
+
+
+All flows are fictional, with random amounts, producing an unrealistic economy
+with three inter-dependent processes. All comments have been replaced by "lorem
+ipsum...".
+
+Filenames include the word "fake" to distinguish them from the true ecospold
+files
+
+The idea is to unit-test the parser, and therefore use a file format as close
+as possible to the original one, with true UUID and names, but all the rest is
+removed or replaced to avoid copyright complications.
+
+The master xml files have also been truncated to cover only the three processes
+of interest and two emissions.

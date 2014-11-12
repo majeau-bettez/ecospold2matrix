@@ -1,0 +1,109 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ecoSpold xmlns="http://www.EcoInvent.org/EcoSpold02">
+  <childActivityDataset>
+    <activityDescription>
+      <activity id="40011095-059d-465e-bd79-da3b6b3b8308" activityNameId="96f5b580-45e4-482b-83d0-70bb4157eae1" parentActivityId="e654c81e-2e0d-4d98-8a2b-727d26edb7fc" inheritanceDepth="-1" type="1" specialActivityType="0" energyValues="0">
+        <activityName xml:lang="en">furnace production, wood chips, average storage area, 1000kW</activityName>
+        <includedActivitiesStart xml:lang="en" />
+        <includedActivitiesEnd xml:lang="en">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</includedActivitiesEnd>
+        <generalComment>
+          <text xml:lang="en" index="1">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</text>
+          <text xml:lang="en" index="2">[Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.]</text>
+        </generalComment>
+        <tag>ConvertedDataset</tag>
+      </activity>
+      <classification classificationId="844bb5bd-c3ab-491d-bd6b-baea2f2ba27b">
+        <classificationSystem xml:lang="en">ISIC rev.4 ecoinvent</classificationSystem>
+        <classificationValue xml:lang="en">2815:Manufacture of ovens, furnaces and furnace burners</classificationValue>
+      </classification>
+      <classification classificationId="17b513f4-69bb-4b4a-bd7f-8c6cb1cee1bf">
+        <classificationSystem xml:lang="en">EcoSpold01Categories</classificationSystem>
+        <classificationValue xml:lang="en">wood energy/heating systems</classificationValue>
+      </classification>
+      <geography geographyId="131278d6-7d7e-11de-9ae2-0019e336be3a">
+        <shortname xml:lang="en">CH</shortname>
+        <comment>
+          <text xml:lang="en" index="1">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</text>
+        </comment>
+      </geography>
+      <technology technologyLevel="3">
+        <comment>
+          <text xml:lang="en" index="1">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</text>
+        </comment>
+      </technology>
+      <timePeriod startDate="2000-01-01" endDate="2014-12-31" isDataValidForEntirePeriod="true">
+        <comment>
+          <text xml:lang="en" index="1">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</text>
+        </comment>
+      </timePeriod>
+      <macroEconomicScenario macroEconomicScenarioId="d9f57f0a-a01f-42eb-a57b-8f18d6635801">
+        <name xml:lang="en">Business-as-Usual</name>
+      </macroEconomicScenario>
+    </activityDescription>
+    <flowData>
+      <intermediateExchange id="b6c3b611-d4c4-4a24-85fe-341af89c5a3e" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" amount="1.81284" intermediateExchangeId="692b4f7e-9e79-4f69-b22f-b66f68f2f9cc" activityLinkId="c002d7b0-0f0f-4e3e-b600-2acd705a8506">
+        <name xml:lang="en">straw, organic</name>
+        <unitName xml:lang="en">kg</unitName>
+        <comment xml:lang="en">own assumption</comment>
+        <comment>EcoSpold01Location=RER</comment>
+        <classification classificationId="39b0f0ab-1a2f-401b-9f4d-6e39400760a4">
+          <classificationSystem xml:lang="en">By-product classification</classificationSystem>
+          <classificationValue xml:lang="en">allocatable product</classificationValue>
+        </classification>
+        <inputGroup>5</inputGroup>
+      </intermediateExchange>
+      <intermediateExchange id="925eb768-98aa-46c8-a841-d863532512e6" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" amount="0.42" intermediateExchangeId="36dc50ef-017c-4d24-af51-f12ef802095e" activityLinkId="d0003dc3-4bd3-4422-9c40-8265239e14ff" productionVolumeAmount="6">
+        <name xml:lang="en">transport, pipeline, offshore, long distance, natural gas</name>
+        <unitName xml:lang="en">kg</unitName>
+        <comment>EcoSpold01Location=CH</comment>
+        <comment xml:lang="en">own assumption</comment>
+        <productionVolumeComment xml:lang="en">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</productionVolumeComment>
+        <classification classificationId="ee3238ec-ca7a-4ddc-af1b-e7c35957b9b6">
+          <classificationSystem xml:lang="en">By-product classification</classificationSystem>
+          <classificationValue xml:lang="en">Waste</classificationValue>
+        </classification>
+        <inputGroup>5</inputGroup>
+      </intermediateExchange>
+      <intermediateExchange id="56d5e16c-c59b-4c3b-b44e-e23c98e6fdda" unitId="5b972631-34e3-4db7-a615-f6931770a0cb" amount="1" intermediateExchangeId="842e3faf-8de9-47a3-bfac-606edc0adbd3" productionVolumeAmount="0.033667542238713">
+        <name xml:lang="en">furnace, wood chips, average storage area, 1000kW</name>
+        <unitName xml:lang="en">unit</unitName>
+        <comment>EcoSpold01Location=CH</comment>
+        <property propertyId="38f94dd1-d5aa-41b8-b182-c0c42985d9dc" amount="54130.487772" isDefiningValue="true" unitId="7b75baf0-cbee-45e6-bf66-af119da06553">
+          <name xml:lang="en">price</name>
+          <unitName xml:lang="en">EUR2005</unitName>
+          <comment xml:lang="en">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</comment>
+        </property>
+        <productionVolumeComment xml:lang="en">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</productionVolumeComment>
+        <classification classificationId="39b0f0ab-1a2f-401b-9f4d-6e39400760a4">
+          <classificationSystem xml:lang="en">By-product classification</classificationSystem>
+          <classificationValue xml:lang="en">allocatable product</classificationValue>
+        </classification>
+        <outputGroup>0</outputGroup>
+      </intermediateExchange>
+      <elementaryExchange id="7033c491-ed71-414b-98cc-435768d5311a" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" casNumber="000074-82-8" amount="0.00123" elementaryExchangeId="70ef743b-3ed5-4a6d-b192-fb6d62378555">
+        <name xml:lang="en">Methane, fossil</name>
+        <unitName xml:lang="en">kg</unitName>
+        <comment xml:lang="en">(3,5,3,1,1,5); calculated based on leakage and gas composition</comment>
+        <compartment subcompartmentId="be7e06e9-0bf5-462e-99dc-fe4aee383c48">
+          <compartment xml:lang="en">air</compartment>
+          <subcompartment xml:lang="en">non-urban air or from high stacks</subcompartment>
+        </compartment>
+        <outputGroup>4</outputGroup>
+      </elementaryExchange>
+    </flowData>
+    <modellingAndValidation>
+      <representativeness systemModelId="290c1f85-4cc4-4fa1-b0c8-2cb7f4276dce">
+        <systemModelName xml:lang="en">Allocation, cut-off by classification</systemModelName>
+        <samplingProcedure xml:lang="en">literature, personal communication</samplingProcedure>
+        <extrapolations xml:lang="en">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</extrapolations>
+      </representativeness>
+    </modellingAndValidation>
+    <administrativeInformation>
+      <dataEntryBy personId="5ccabe2c-aa6b-4c10-9cd7-77074bee0c03" isActiveAuthor="true" personName="Christian Bauer" personEmail="psi@ecoinvent.org" />
+      <dataGeneratorAndPublication personId="5ccabe2c-aa6b-4c10-9cd7-77074bee0c03" personName="Christian Bauer" personEmail="psi@ecoinvent.org" dataPublishedIn="2" publishedSourceId="1c44de9d-ddf9-4061-9e55-378109e70156" publishedSourceYear="2007" publishedSourceFirstAuthor="Bauer, C." isCopyrightProtected="true" accessRestrictedTo="1" />
+      <fileAttributes majorRelease="3" minorRelease="0" majorRevision="110" minorRevision="1" internalSchemaVersion="2.0.10" defaultLanguage="en" creationTimestamp="2010-07-28T18:33:53" fileGenerator="EcoSpold01Converter" fileTimestamp="2011-02-25T10:31:21" contextId="de659012-50c4-4e96-b54a-fc781bf987ab">
+        <contextName xml:lang="en">ecoinvent</contextName>
+      </fileAttributes>
+    </administrativeInformation>
+  </childActivityDataset>
+</ecoSpold>
