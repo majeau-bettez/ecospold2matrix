@@ -429,7 +429,7 @@ class Ecospold2Matrix(object):
 
                 # Log event
                 sha1 = self.__hash_file(f)
-                msg = "{} saved in {} with SHA-1 of {}"
+                msg = "{} loaded from {} with SHA-1 of {}"
                 self.log.info(msg.format('Flows', filename, sha1))
 
         # ...OR EXTRACT FROM ECOSPOLD DATA..
@@ -497,7 +497,7 @@ class Ecospold2Matrix(object):
 
                 # Log event
                 sha1 = self.__hash_file(f)
-                msg = "{} saved in {} with SHA-1 of {}"
+                msg = "{} loaded from {} with SHA-1 of {}"
                 self.log.info(msg.format('Labels', filename, sha1))
 
         # OR EXTRACT FROM ECOSPOLD DATA...
