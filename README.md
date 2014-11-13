@@ -19,8 +19,8 @@ Basic functionality
 
 
 
-Typical usage
--------------
+Two main methods
+----------------
 	import ecospold2matrix as e2m
 
 	# Define parser object, with default and project-specific parameters
@@ -29,6 +29,9 @@ Typical usage
 	# Assemble matrices, including scaled-up flow matrices, and save to csv-files
 	parser.ecospold_to_Leontief(fileformats=['csv'], with_absolute_flows=True)
 
+Short Demo
+----------
+Have a look at this [Ipython notebook for a demo of typical usage](http://nbviewer.ipython.org/github/majeau-bettez/ecospold2matrix/blob/master/doc/ecospold2matrix_demo.ipynb)
 
 
 Dependencies
