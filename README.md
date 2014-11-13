@@ -19,7 +19,7 @@ Basic functionality
 
 
 
-Two main methods
+Simple Use case
 ----------------
 	import ecospold2matrix as e2m
 
@@ -41,3 +41,7 @@ Dependencies
 - Pandas
 - Numpy
 - Scipy
+
+### Open Source
+
+This is a simple, open-source tool. Feel most welcome to use, give feedback, modify or contribute.
