@@ -42,6 +42,7 @@ Dependencies
 - Numpy
 - Scipy
 
-### Open Source
+Open Source
+----------
 
-This is a simple, open-source tool. Feel most welcome to use, give feedback, modify or contribute.
+This tool incorporates some code from the open-source [Brightway2 project](http://brightwaylca.org/). Ecospold2Matrix is also open-source, so feel most welcome to use, give feedback, modify or contribute.
