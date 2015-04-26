@@ -51,6 +51,7 @@ import pickle
 import csv
 import shelve
 import hashlib
+import sqlite3
 # pylint: disable-msg=C0103
 
 
@@ -69,6 +70,7 @@ class Ecospold2Matrix(object):
     __ELEXCHANGE = 'ElementaryExchanges.xml'
     __INTERMEXCHANGE = 'IntermediateExchanges.xml'
     __ACTIVITYINDEX = 'ActivityIndex.xml'
+    __DB_CHARACTERISATION = 'characterisation.db'
     rtolmin = 1e-16  # 16 significant digits being roughly the limit of float64
 
     def __init__(self, sys_dir, project_name, out_dir='.', lci_dir=None,
@@ -1975,3 +1977,229 @@ class Ecospold2Matrix(object):
             self.log.warn(msg.format(len(id_duplicates), name, filename))
 
         return deduplicated, duplicates, id_deduplicated, id_duplicates
+
+    # =========================================================================
+    # Characterisation factors matching
+    # =========================================================================
+    def initialize_database(self):
+        
+        conn = sqlite3.connect(self.__DB_CHARACTERISATION)
+        c = conn.cursor()
+        c.execute('PRAGMA foreign_keys = ON;')
+        conn.commit()
+        c.executescript("""
+            DROP TABLE IF EXISTS substances;
+            CREATE TABLE substances(
+                substId		INTEGER NOT NULL PRIMARY KEY,
+                formula		TEXT,
+                cas	    	text	CHECK (length(cas)=11 OR cas IS NULL),
+                tag	    	TEXT	DEFAULT NULL,
+                rawId		int	    UNIQUE,
+                unit		text	NOT NULL,
+                UNIQUE(cas, tag, unit)
+            );
+
+            DROP TABLE IF EXISTS schemes;
+            CREATE TABLE schemes(
+                SchemeId	INTEGER     NOT NULL    PRIMARY KEY	,
+                name		TEXT    	NOT NULL
+            );
+
+            DROP TABLE IF EXISTS Names;
+            CREATE TABLE Names(
+                nameId	    INTEGER NOT NULL    PRIMARY KEY,
+                name	    TEXT	NOT NULL,
+                substId	    INT	    NOT NULL    REFERENCES substances,
+                unique(name, substId)
+            );
+
+            DROP TABLE IF EXISTS nameHasScheme;
+            CREATE TABLE nameHasScheme(
+                nameId		INTEGER	NOT NULL 	REFERENCES names,
+                schemeId	INTEGER	NOT NULL	REFERENCES schemes
+            );
+
+            DROP TABLE IF EXISTS comp;
+            CREATE TABLE comp(
+                compName	TEXT	PRIMARY KEY
+            );
+
+            DROP TABLE IF EXISTS subcomp;
+            CREATE TABLE subcomp(
+                subcompName	TEXT	PRIMARY KEY,
+                parentcomp	TEXT	REFERENCES comp(compName)
+            );
+
+
+            -- elementary flow tables (named observed flows for no good reason)
+            DROP TABLE IF EXISTS observedflows;
+            CREATE TABLE observedflows(
+                obsflowId 	INTEGER 	NOT NULL PRIMARY KEY,
+                substId		INTEGER		NOT NULL REFERENCES substances,
+                DSID		integer		UNIQUE,
+                ardaId		integer		unique,
+                comp		TEXT		NOT NULL references comp ,
+                subcomp		TEXT		references subcomp,
+                unit		TEXT		not null,
+                UNIQUE(substId, comp, subcomp, unit)
+            );
+
+            drop table if exists old_labels;
+            create table old_labels(
+                oldid		INTEGER NOT NULL  primary key,
+                fullname	text,
+                ardaid		integer not null,
+                name		text not null,
+                dsid		integer not null,
+                infrastructure	text,
+                location	text,
+                comp		text,
+                subcomp		text,
+                unit		text ,
+                covered_before	boolean not null,
+                covered_new	boolean default false
+            );
+
+            DROP TABLE IF EXISTS impacts;
+            CREATE TABLE impacts (
+                impactId		TEXT	PRIMARY KEY,
+                long_name		TEXT	not null,
+                scope			text	not null,
+                perspective		text	not null,
+                unit			TEXT	not null,
+                referenceSubstId	INTEGER	--REFERENCES substances(substId)	
+            );
+
+            DROP TABLE IF EXISTS factors;
+            CREATE TABLE factors(
+                factorId	INTEGER		NOT NULL PRIMARY KEY,
+                substId		integer		not null		references substances,
+                comp		text		not null		references comp,
+                subcomp		text					references subcomp, -- no subcomp in Arda
+                unit		text		not null,
+                impactId	TEXT		not null		REFERENCES impacts,
+                method		TEXT, 			-- Or foreignkey of table scheme?
+                factorValue	double precision	not null,
+                UNIQUE (substId, comp, subcomp, impactId,  method)
+            );
+
+            --==========================================
+            -- MATCHING ELEMENTARY FLOWS ANC CHAR FACTORS
+            --===========================================
+
+            -- Define the "default" subcompartment amongst all the subcompartments of a parent compartment. Useful for characterisation methods that do not define factors for the parent compartment (i.e. no "unspecified" subcompartment).
+            DROP TABLE IF EXISTS fallback_sc;
+            CREATE TABLE fallback_sc(
+                comp	TEXT	not null	REFERENCES comp, 
+                subcomp	TEXT	not null	REFERENCES subcomp,
+                method	TEXT
+            );
+
+            -- Table for matching the "observed" (best estimate) subcompartment with the best fitting comp/subcompartment of characterisation method
+            -- Kind of like the "proxy table" of elementaryflow/characterisation factors. Could maybe find a better name.
+            drop table if exists obs2char_subcomps;
+            create table obs2char_subcomps(
+                obs2charId	INTEGER NOT NULL 	primary key,
+                comp		text	not null	references comp,--REFERENCES comp,
+                obs_sc		text	not null	references subcomp, -- observed subcomp
+                char_sc		text	not null	references subcomp, -- best match for a characterised subcomp
+                scheme		TEXT	,
+                UNIQUE(comp, obs_sc, scheme)
+            );
+
+            DROP TABLE IF EXISTS obs2char;
+            CREATE TABLE obs2char(
+                obsflowId	INTEGER,
+                impactId	text	not null,
+                factorId	int	not null,
+                factorValue	double precision	not null,
+                scheme		TEXT,
+                UNIQUE(obsflowId, impactId, scheme)
+            );
+
+            --====================================
+            -- TEMPORARY TABLES
+            --====================================
+            -- Temporary tables to facilitate input of substances
+
+            DROP TABLE IF EXISTS labels;
+            CREATE table labels(
+                labelId		INTEGER NOT NULL PRIMARY KEY,
+                substId		INTEGER,
+                comp		TEXT,
+                subcomp		TEXT,
+                Name		TEXT,
+                cas		TEXT,
+                tag		TEXT,
+                unit		TEXT,
+                CONSTRAINT unique_label UNIQUE(substId, comp, subcomp, Name, cas, unit)
+            );
+
+            DROP TABLE IF EXISTS synonyms;
+            CREATE temporary TABLE synonyms(
+                rawId	INTEGER,
+                tag	TEXT,
+                name1	TEXT,
+                name2	TEXT,
+                unit	text
+            );
+
+            DROP TABLE IF EXISTS tempNamesWithoutCas;
+            CREATE temporary TABLE tempNamesWithoutCas(
+                rawId INTEGER,
+                tag	TEXT,
+                name1 TEXT,
+                name2 TEXT,
+                unit	text
+            );
+
+            DROP TABLE IF EXISTS singles;
+            CREATE temporary TABLE singles(
+                rawId	INTEGER,
+                tag	TEXT,
+                name	TEXT,
+                unit	text
+            );
+
+            DROP table if exists raw_recipe;
+            """)
+        conn.commit()
+
+        hardcoded = [
+                {'name':'AP',  'rows':5, 'range':'B:J'},
+                {'name':'FEP', 'rows':5, 'range':'B:J'},
+                {'name':'LOP', 'rows':5, 'range':'B:M'}
+                ]
+        headers = ['comp','subcomp','recipeName','simaproName','cas','unit']
+
+        for i in range(len(hardcoded)):
+            sheet = hardcoded[i]
+            foo = pd.io.excel.read_excel('ReCiPe111.xlsx', sheet['name'],
+                    skiprows=range(sheet['rows']), parse_cols=sheet['range'])
+
+            foo.rename(columns={'subcompartment':'subcomp',
+                                'Subcompartment':'subcomp',
+                                'Compartment':'comp',
+                                'Substance name (ReCiPe)':'recipeName',
+                                'Substance name (SimaPro)':'simaproName',
+                                'CAS number': 'cas',
+                                'Unit':'unit' }, inplace=True)
+            foo.set_index(headers, inplace = True)
+
+            try:
+                raw_recipe = pd.concat([raw_recipe, foo],
+                        join='outer',
+                        verify_integrity=True)
+            except NameError:
+                raw_recipe = foo.copy()
+
+        raw_recipe.reset_index(inplace=True)
+        raw_recipe.index.names = ['rawId']
+        raw_recipe.to_sql('raw_recipe', conn)
+
+        # major cleanup
+        fd = open('clean_recipe.sql', 'r')
+        sqlFile = fd.read()
+        fd.close()
+        c.executescript(sqlFile)
+
