@@ -16,8 +16,7 @@ INSERT INTO labels (comp, subcomp, Name, cas, tag, unit ) SELECT DISTINCT comp, 
 
 INSERT INTO comp(compName) SELECT DISTINCT comp FROM labels where comp not in (select compName from comp);
 
-INSERT INTO subcomp (subcompName) SELECT DISTINCT subcomp FROM labels WHERE subcomp IS NOT NULL and subcomp not in (select subcompname from subcomp) 
-;
+INSERT INTO subcomp (subcompName) SELECT DISTINCT subcomp FROM labels WHERE subcomp IS NOT NULL and subcomp not in (select subcompname from subcomp);
 
 
 -- New substance for every new CAS 
@@ -50,15 +49,14 @@ SELECT * FROM(
 	ORDER BY name1, name2, tag, unit)
 GROUP BY name1, name2, tag, unit;
 
-INSERT INTO singles(rawId, NAME, tag, unit)
+INSERT INTO singles(name, tag, unit)
 SELECT * FROM (
-SELECT DISTINCT ON (t.name1) t.rawId, t.name1, t.tag, t.unit FROM tempNamesWithoutCAS t, synonyms sy
+SELECT DISTINCT t.name1, t.tag, t.unit FROM tempNamesWithoutCAS t, synonyms sy
 WHERE t.name1 IS NOT NULL AND NOT EXISTS (SELECT 1 FROM synonyms sy WHERE sy.NAME1=t.name1 OR sy.name2=t.name1)
-ORDER BY t.name1, t.rawId, t.tag, t.unit) AS single1
-UNION (
-SELECT DISTINCT ON (t.name2) t.rawId, t.name2, t.tag, t.unit FROM tempNamesWithoutCAS t, synonyms sy
+UNION 
+SELECT DISTINCT t.name2, t.tag, t.unit FROM tempNamesWithoutCAS t, synonyms sy
 WHERE t.name2 IS NOT NULL AND NOT EXISTS (SELECT 1 FROM synonyms sy WHERE sy.NAME1=t.name2 OR sy.name2=t.name2)
-ORDER BY t.name2, t.rawId, t.tag, t.unit); 
+); 
 
 -- add all synonyms that can be matched to existing substances by virtue of their other name
 INSERT INTO names (NAME, substId)
@@ -70,36 +68,31 @@ WHERE sy.name2=n.name AND sy.name1 NOT IN (SELECT n.NAME FROM names n)
 ;
 
 -- create substance for each pair when none of the synonyms are found
-INSERT INTO substances (rawId, tag, unit) 
-SELECT DISTINCT sy.rawId, sy.tag, sy.unit FROM synonyms sy, names n
+INSERT INTO substances (aName, tag, unit) 
+SELECT DISTINCT sy.name1, sy.tag, sy.unit FROM synonyms sy, names n
 WHERE NOT EXISTS ( SELECT 1 FROM names n WHERE
 			sy.name1 = n.NAME OR sy.name2 = n.NAME);
 
 INSERT INTO names (substId, name)
 SELECT s.substid, sy.name1 FROM substances s, synonyms sy
-WHERE s.rawId = sy.rawId AND NOT EXISTS ( SELECT 1 FROM names n WHERE sy.name1 = n.NAME)
+WHERE s.aName = sy.name1 AND NOT EXISTS ( SELECT 1 FROM names n WHERE sy.name1 = n.NAME)
 UNION
 SELECT s.substid, sy.name2 FROM substances s, synonyms sy
-WHERE s.rawId = sy.rawId AND NOT EXISTS ( SELECT 1 FROM names n WHERE sy.name2 = n.NAME);
+WHERE s.aName = sy.name1 AND NOT EXISTS ( SELECT 1 FROM names n WHERE sy.name2 = n.NAME);
 
 -- create new substance for all unmatched single names--
-INSERT INTO substances ( rawId, tag, unit) 
-SELECT DISTINCT rawId, tag, unit FROM singles si, names n
-WHERE si.NAME NOT IN (SELECT n.name FROM names n);
+INSERT INTO substances ( aName, tag, unit) 
+SELECT DISTINCT si.name, si.tag, si.unit FROM singles si, names n
+WHERE si.name NOT IN (SELECT n.name FROM names n);
 
 INSERT INTO names (substId, NAME) 
 SELECT s.substId, si.NAME FROM substances s, singles si
-WHERE s.rawId=si.rawId AND si.NAME NOT IN (SELECT n.NAME FROM names n);
+WHERE s.aName=si.name AND si.name NOT IN (SELECT n.NAME FROM names n);
 
 
 --========================
 -- REVERSE DOCUMENTATION
 --=======================
--- add substId in raw_recipe (probably slow);
-UPDATE raw_recipe AS r
-SET substId = n.substId
-FROM names n, names n2
-WHERE (n.NAME=r.recipeName OR r.recipeName IS NULL) AND (n2.NAME=simaproName OR r.simaproName IS NULL) AND n.substId=n2.substid;
 
 insert into nameHasScheme
 select distinct n.nameId, s.schemeId from names n, schemes s
@@ -109,6 +102,6 @@ and s.name='simapro';
 insert into nameHasScheme
 select distinct n.nameId, s.schemeId from names n, schemes s
 where n.name in (select recipename from raw_recipe)
-and s.name='recipe108';
+and s.name='recipe111';
 
 

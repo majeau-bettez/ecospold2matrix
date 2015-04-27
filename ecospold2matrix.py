@@ -249,6 +249,11 @@ class Ecospold2Matrix(object):
         self.log.info('Order elementary exchanges based on: ' +
                       ', '.join([i for i in self.STR_order]))
 
+        try:
+            self.conn = sqlite3.connect(self.__DB_CHARACTERISATION)
+        except:
+            pass
+
     # =========================================================================
     # MAIN FUNCTIONS
     def ecospold_to_Leontief(self, fileformats=None, with_absolute_flows=False,
@@ -1983,10 +1988,9 @@ class Ecospold2Matrix(object):
     # =========================================================================
     def initialize_database(self):
         
-        conn = sqlite3.connect(self.__DB_CHARACTERISATION)
-        c = conn.cursor()
+        c = self.conn.cursor()
         c.execute('PRAGMA foreign_keys = ON;')
-        conn.commit()
+        self.conn.commit()
         c.executescript("""
             DROP TABLE IF EXISTS substances;
             CREATE TABLE substances(
@@ -1994,7 +1998,7 @@ class Ecospold2Matrix(object):
                 formula		TEXT,
                 cas	    	text	CHECK (length(cas)=11 OR cas IS NULL),
                 tag	    	TEXT	DEFAULT NULL,
-                rawId		int	    UNIQUE,
+                aName		text,
                 unit		text	NOT NULL,
                 UNIQUE(cas, tag, unit)
             );
@@ -2136,7 +2140,7 @@ class Ecospold2Matrix(object):
             );
 
             DROP TABLE IF EXISTS synonyms;
-            CREATE temporary TABLE synonyms(
+            CREATE TABLE synonyms(
                 rawId	INTEGER,
                 tag	TEXT,
                 name1	TEXT,
@@ -2145,7 +2149,7 @@ class Ecospold2Matrix(object):
             );
 
             DROP TABLE IF EXISTS tempNamesWithoutCas;
-            CREATE temporary TABLE tempNamesWithoutCas(
+            CREATE TABLE tempNamesWithoutCas(
                 rawId INTEGER,
                 tag	TEXT,
                 name1 TEXT,
@@ -2154,7 +2158,7 @@ class Ecospold2Matrix(object):
             );
 
             DROP TABLE IF EXISTS singles;
-            CREATE temporary TABLE singles(
+            CREATE TABLE singles(
                 rawId	INTEGER,
                 tag	TEXT,
                 name	TEXT,
@@ -2163,8 +2167,12 @@ class Ecospold2Matrix(object):
 
             DROP table if exists raw_recipe;
             """)
-        conn.commit()
+        self.conn.commit()
 
+    def read_characterisation(self):
+
+        c = self.conn.cursor()
+        # sheet reading parameters
         hardcoded = [
                 {'name':'AP',  'rows':5, 'range':'B:J'},
                 {'name':'FEP', 'rows':5, 'range':'B:J'},
@@ -2195,7 +2203,7 @@ class Ecospold2Matrix(object):
 
         raw_recipe.reset_index(inplace=True)
         raw_recipe.index.names = ['rawId']
-        raw_recipe.to_sql('raw_recipe', conn)
+        raw_recipe.to_sql('raw_recipe', self.conn)
 
         # major cleanup
         fd = open('clean_recipe.sql', 'r')
@@ -2203,3 +2211,10 @@ class Ecospold2Matrix(object):
         fd.close()
         c.executescript(sqlFile)
 
+    def input_substances(self):
+        c = self.conn.cursor()
+        fd = open('input_substances.sql', 'r')
+        sqlFile = fd.read()
+        fd.close()
+        c.executescript(sqlFile)
+             
