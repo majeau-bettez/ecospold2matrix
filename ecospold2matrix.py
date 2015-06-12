@@ -52,6 +52,8 @@ import csv
 import shelve
 import hashlib
 import sqlite3
+import xlrd
+import xlwt
 # pylint: disable-msg=C0103
 
 
@@ -2067,8 +2069,8 @@ class Ecospold2Matrix(object):
             DROP TABLE IF EXISTS impacts;
             CREATE TABLE impacts (
                 impactId		TEXT	PRIMARY KEY,
-                long_name		TEXT	not null,
-                scope			text	not null,
+                long_name		TEXT	,
+                scope			text	,
                 perspective		text	not null,
                 unit			TEXT	not null,
                 referenceSubstId	INTEGER	--REFERENCES substances(substId)	
@@ -2172,18 +2174,53 @@ class Ecospold2Matrix(object):
     def read_characterisation(self):
 
         c = self.conn.cursor()
+
+        # def xlsrange(wb, sheetname, rangename):
+        #     ws = wb.sheet_by_name(sheetname)
+        #     ix = xlwt.Utils.cellrange_to_rowcol_pair(rangename)
+        #     values = []
+        #     for i in range(ix[0],ix[2]+1):
+        #         values.append(ws.row_values(i, ix[1], ix[3]+1))
+        #     return values
+
+        def xlsrange(wb, sheetname, rangename):
+            ws = wb.sheet_by_name(sheetname)
+            ix = xlwt.Utils.cellrange_to_rowcol_pair(rangename)
+            values = []
+            for i in range(ix[1],ix[3]+1):
+                values.append(tuple(ws.col_values(i, ix[0], ix[2]+1)))
+            return values
+
         # sheet reading parameters
         hardcoded = [
-                {'name':'AP',  'rows':5, 'range':'B:J'},
-                {'name':'FEP', 'rows':5, 'range':'B:J'},
-                {'name':'LOP', 'rows':5, 'range':'B:M'}
+                {'name':'AP',  'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'FEP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'LOP', 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'}
                 ]
+
         headers = ['comp','subcomp','recipeName','simaproName','cas','unit']
 
+        # Get all impact categories
+
+        wb = xlrd.open_workbook('ReCiPe111.xlsx')
+        imp =[]
+        for i in range(len(hardcoded)):
+            sheet = hardcoded[i]
+            imp = imp + xlsrange(wb, sheet['name'],sheet['midpoint'])
+
+        c.executemany('''insert into impacts(perspective, unit, impactId)
+                         values(?,?,?)''', imp)
+        c.execute('''update impacts set impactId=replace(impactid,')','');''')
+        c.execute('''update impacts set impactId=replace(impactid,'(','_');''')
+
+
+
+        # Get all characterisation factors
         for i in range(len(hardcoded)):
             sheet = hardcoded[i]
             foo = pd.io.excel.read_excel('ReCiPe111.xlsx', sheet['name'],
                     skiprows=range(sheet['rows']), parse_cols=sheet['range'])
+
 
             foo.rename(columns={'subcompartment':'subcomp',
                                 'Subcompartment':'subcomp',
@@ -2210,6 +2247,8 @@ class Ecospold2Matrix(object):
         sqlFile = fd.read()
         fd.close()
         c.executescript(sqlFile)
+
+
 
     def input_substances(self):
         c = self.conn.cursor()
