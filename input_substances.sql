@@ -94,6 +94,14 @@ WHERE s.aName=si.name AND si.name NOT IN (SELECT n.NAME FROM names n);
 -- REVERSE DOCUMENTATION
 --=======================
 
+UPDATE raw_recipe
+SET substId = (SELECT n.substId
+	       FROM names n, names n2
+               WHERE (n.NAME=raw_recipe.recipeName OR raw_recipe.recipeName IS NULL)
+         		AND (n2.NAME=simaproName OR raw_recipe.simaproName IS NULL)
+		       	AND n.substId=n2.substid);
+
+
 insert into nameHasScheme
 select distinct n.nameId, s.schemeId from names n, schemes s
 where n.name in (select simaproname from raw_recipe)

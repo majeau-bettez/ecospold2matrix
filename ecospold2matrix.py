@@ -2168,7 +2168,33 @@ class Ecospold2Matrix(object):
             );
 
             DROP table if exists raw_recipe;
+
+
+            DROP Table IF EXISTS bad;
+            CREATE TABLE bad(
+                sparseId        INTEGER REFERENCES sparse_factors,
+                substId         INTEGER DEFAULT NULL ,
+                comp            TEXT    ,
+                subcomp         TEXT    ,
+                unit            TEXT    ,
+                factorValue	double precision,
+                impactId	TEXT
+            );
+
+            DROP TABLE IF EXISTS sparse_factors;
+            CREATE TABLE sparse_factors(
+                sparseId        INTEGER  PRIMARY KEY NOT NULL,
+                substId         INTEGER     DEFAULT NULL ,
+                comp            TEXT    ,
+                subcomp         TEXT    ,
+                unit            TEXT    ,
+                factorValue	    double precision,
+                impactId	    TEXT
+            );
             """)
+
+
+
         self.conn.commit()
 
     def read_characterisation(self):
@@ -2197,11 +2223,9 @@ class Ecospold2Matrix(object):
                 {'name':'FEP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
                 {'name':'LOP', 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'}
                 ]
-
         headers = ['comp','subcomp','recipeName','simaproName','cas','unit']
 
-        # Get all impact categories
-
+        # Get all impact categories directly from excel file
         wb = xlrd.open_workbook('ReCiPe111.xlsx')
         imp =[]
         for i in range(len(hardcoded)):
@@ -2218,8 +2242,10 @@ class Ecospold2Matrix(object):
         # Get all characterisation factors
         for i in range(len(hardcoded)):
             sheet = hardcoded[i]
-            foo = pd.io.excel.read_excel('ReCiPe111.xlsx', sheet['name'],
-                    skiprows=range(sheet['rows']), parse_cols=sheet['range'])
+            foo = pd.io.excel.read_excel('ReCiPe111.xlsx',
+                                         sheet['name'],
+                                         skiprows=range(sheet['rows']),
+                                         parse_cols=sheet['range'])
 
 
             foo.rename(columns={'subcompartment':'subcomp',
@@ -2238,6 +2264,7 @@ class Ecospold2Matrix(object):
             except NameError:
                 raw_recipe = foo.copy()
 
+        raw_recipe["SubstId"] = np.nan
         raw_recipe.reset_index(inplace=True)
         raw_recipe.index.names = ['rawId']
         raw_recipe.to_sql('raw_recipe', self.conn)
@@ -2256,4 +2283,25 @@ class Ecospold2Matrix(object):
         sqlFile = fd.read()
         fd.close()
         c.executescript(sqlFile)
-             
+
+    def step2_characterisztion_factors(self):
+        raw_recipe = pd.read_sql_query("SELECT * FROM raw_recipe", self.conn)
+        raw_recipe.drop(['rawId', 'recipeName', 'simaproName','cas'],
+                        1, inplace=True)
+        raw_recipe.set_index(['SubstId','comp','subcomp','unit'], inplace=True)
+        sparse_factors = raw_recipe.stack().reset_index(-1)
+        sparse_factors.columns=['impactId','factorValue']
+        sparse_factors.reset_index(inplace=True)
+        sparse_factors.to_sql('tmp', self.conn, index=False)
+
+        c = self.conn.cursor()
+        c.execute('''
+                INSERT INTO sparse_factors(
+                       substId, comp, subcomp, unit, factorValue, impactId)
+                SELECT substId, comp, subcomp, unit, factorValue, impactId
+                FROM tmp;
+                ''')
+        c.execute("DROP TABLE tmp")
+
+
+
