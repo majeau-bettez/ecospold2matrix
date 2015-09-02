@@ -54,7 +54,9 @@ import hashlib
 import sqlite3
 import xlrd
 import xlwt
+import IPython
 # pylint: disable-msg=C0103
+
 
 
 class Ecospold2Matrix(object):
@@ -2078,13 +2080,13 @@ class Ecospold2Matrix(object):
 
             DROP TABLE IF EXISTS factors;
             CREATE TABLE factors(
-                factorId	INTEGER		NOT NULL PRIMARY KEY,
-                substId		integer		not null		references substances,
-                comp		text		not null		references comp,
-                subcomp		text					references subcomp, -- no subcomp in Arda
-                unit		text		not null,
-                impactId	TEXT		not null		REFERENCES impacts,
-                method		TEXT, 			-- Or foreignkey of table scheme?
+                factorId	INTEGER		NOT NULL     PRIMARY KEY,
+                substId		integer		NOT NULL     REFERENCES substances,
+                comp		text		NOT NULL     REFERENCES comp(compName),
+                subcomp		text                         REFERENCES subcomp(subcompName), -- no subcomp in Arda
+                unit		text		NOT NULL,
+                impactId	TEXT		NOT NULL     REFERENCES impacts,
+                method		TEXT,
                 factorValue	double precision	not null,
                 UNIQUE (substId, comp, subcomp, impactId,  method)
             );
@@ -2274,6 +2276,7 @@ class Ecospold2Matrix(object):
         sqlFile = fd.read()
         fd.close()
         c.executescript(sqlFile)
+        self.conn.commit()
 
 
 
@@ -2283,10 +2286,11 @@ class Ecospold2Matrix(object):
         sqlFile = fd.read()
         fd.close()
         c.executescript(sqlFile)
+        self.conn.commit()
 
     def step2_characterisztion_factors(self):
         raw_recipe = pd.read_sql_query("SELECT * FROM raw_recipe", self.conn)
-        raw_recipe.drop(['rawId', 'recipeName', 'simaproName','cas'],
+        raw_recipe.drop(['rawId', 'recipeName', 'simaproName','cas', 'tag'],
                         1, inplace=True)
         raw_recipe.set_index(['SubstId','comp','subcomp','unit'], inplace=True)
         sparse_factors = raw_recipe.stack().reset_index(-1)
@@ -2296,12 +2300,54 @@ class Ecospold2Matrix(object):
 
         c = self.conn.cursor()
         c.execute('''
-                INSERT INTO sparse_factors(
-                       substId, comp, subcomp, unit, factorValue, impactId)
-                SELECT substId, comp, subcomp, unit, factorValue, impactId
-                FROM tmp;
-                ''')
+
+        INSERT INTO sparse_factors(
+               substId, comp, subcomp, unit, factorValue, impactId)
+        SELECT substId, comp, subcomp, unit, factorValue, impactId
+        FROM tmp;
+        '''
+        )
         c.execute("DROP TABLE tmp")
 
+        c.execute("""
+
+        INSERT INTO bad
+        SELECT * FROM sparse_factors AS s1
+        WHERE EXISTS (
+            SELECT 1 FROM sparse_factors AS s2
+            WHERE s1.SubstId = s2.SubstId
+            AND s1.comp=s2.comp
+            AND (s1.subcomp=s2.subcomp OR 
+                (s1.subcomp IS NULL AND s2.subcomp IS NULL))
+            AND s1.unit=s2.unit
+            AND s1.impactId=s2.impactId
+            AND s1.sparseId <> s2.sparseId
+            AND s1.factorValue <> s2.factorValue);
+        """)
+
+        c.execute("select * from bad")
+        bad = c.fetchall()
+        if len(bad) > 0:
+                parser.log.warning(
+                    "Two different characterisation factors for the same thing.")
+
+        method = ('ReCiPe111',)
+
+        c.execute("""
+
+        INSERT INTO factors (
+                substId, comp, subcomp, unit, impactId, method, factorValue)
+        SELECT DISTINCT sp.substId,
+                        sp.comp,
+                        sp.subcomp,
+                        sp.unit,
+                        sp.impactId,
+                        ?,
+                        sp.factorValue
+        FROM sparse_factors AS sp
+        WHERE sp.substid NOT IN (SELECT b.substid FROM bad b);
+        """, method)
+
+        self.conn.commit()
 
 
