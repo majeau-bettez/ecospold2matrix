@@ -279,10 +279,13 @@ class Ecospold2Matrix(object):
         self.log.info('Order elementary exchanges based on: ' +
                       ', '.join([i for i in self.STR_order]))
 
+        database_name = self.project_name + '_' + self.__DB_CHARACTERISATION
         try:
-            self.conn = sqlite3.connect(self.__DB_CHARACTERISATION)
+            self.conn = sqlite3.connect(self.project_name + '_' + self.__DB_CHARACTERISATION)
         except:
+            self.log.warning("Could not establish connection to database")
             pass
+        self.conn.commit()
 
     # =========================================================================
     # MAIN FUNCTIONS
@@ -2029,6 +2032,19 @@ class Ecospold2Matrix(object):
 
             DROP table if exists raw_recipe;
 
+            CREATE TABLE raw_recipe(
+                id           INTEGER NOT NULL PRIMARY KEY,
+                comp         TEXT,
+                subcomp      TEXT,
+                name1        TEXT,
+                name2        TEXT,
+                cas          TEXT    CHECK (cas NOT LIKE '0%'),
+                tag          TEXT,
+                unit         TEXT,
+                impactId     TEXT REFERENCES impacts,
+                factorValue  REAL,
+                UNIQUE(comp, subcomp, name1, name2, cas, unit, impactId)
+                );
 
             DROP TABLE IF EXISTS labels;
             CREATE table labels(
@@ -2112,13 +2128,13 @@ class Ecospold2Matrix(object):
             -- elementary flow tables (named observed flows for no good reason)
             DROP TABLE IF EXISTS observedflows;
             CREATE TABLE observedflows(
-                obsflowId   INTEGER     NOT NULL PRIMARY KEY,
-                dsid        integer     UNIQUE,
+                id          INTEGER     NOT NULL PRIMARY KEY,
+                elflow_id   integer     UNIQUE,
                 substId     INTEGER     NOT NULL REFERENCES substances,
                 comp        TEXT        NOT NULL references comp,
                 subcomp     TEXT        references subcomp,
                 ardaId      integer     UNIQUE,
-                CONSTRAINT uniqueFlow UNIQUE(dsid, substId, comp, subcomp)
+                CONSTRAINT uniqueFlow UNIQUE(elflow_id, substId, comp, subcomp)
             );
 
             drop table if exists old_labels;
@@ -2293,11 +2309,24 @@ class Ecospold2Matrix(object):
 
         # sheet reading parameters
         hardcoded = [
-                {'name':'AP',  'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'FEP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'LOP', 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'}
+                {'name':'FEP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'MEP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'GWP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'ODP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'AP'  , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'POFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'PMFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'IRP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'LOP' , 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'},
+             #   {'name':'LTP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'WDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'MDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'FDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'TP'  , 'rows':5, 'range':'B:S', 'midpoint':'H4:S6'}
                 ]
         headers = ['comp','subcomp','recipeName','simaproName','cas','unit']
+        self.log.info("Careful, make sure you shift headers to the right by 1 column in FDP sheet of ReCiPe111.xlsx")
+        
 
         # Get all impact categories directly from excel file
         wb = xlrd.open_workbook('ReCiPe111.xlsx')
@@ -2310,10 +2339,11 @@ class Ecospold2Matrix(object):
                          values(?,?,?)''', imp)
         c.execute('''update impacts set impactId=replace(impactid,')','');''')
         c.execute('''update impacts set impactId=replace(impactid,'(','_');''')
+        self.conn.commit()
 
 
-
-        # Get all characterisation factors
+        # GET ALL CHARACTERISATION FACTORS
+        raw_recipe = pd.DataFrame()
         for i in range(len(hardcoded)):
             sheet = hardcoded[i]
             foo = pd.io.excel.read_excel('ReCiPe111.xlsx',
@@ -2322,6 +2352,7 @@ class Ecospold2Matrix(object):
                                          parse_cols=sheet['range'])
 
 
+            # clean up a bit
             foo.rename(columns={'subcompartment':'subcomp',
                                 'Subcompartment':'subcomp',
                                 'Compartment':'comp',
@@ -2329,24 +2360,78 @@ class Ecospold2Matrix(object):
                                 'Substance name (SimaPro)':'simaproName',
                                 'CAS number': 'cas',
                                 'Unit':'unit' }, inplace=True)
-            foo.set_index(headers, inplace = True)
 
+            foo.cas = foo.cas.str.replace('^[0]*','')
+            foo.ix[:, headers] = foo.ix[:, headers].fillna('')
+            foo = foo.set_index(headers).stack(dropna=True).reset_index(-1)
+            foo.columns=['impactId','factorValue']
+
+
+            # concatenate
             try:
                 raw_recipe = pd.concat([raw_recipe, foo],
-                        join='outer',
-                        verify_integrity=True)
+                                        axis=0,
+                                        join='outer')
             except NameError:
                 raw_recipe = foo.copy()
+            except:
+                print("Problem with concat")
+                IPython.embed()
 
-        raw_recipe["SubstId"] = np.nan
+
+            #if i==0:
+            #    foo.to_sql('raw_recipe', self.conn, if_exists='replace', index=False)
+            #else:
+            #    foo.to_sql('tmp', self.conn, if_exists='replace', index=False)
+
+
+            #    c.executescript("""
+            #    drop table if exists tmp2;
+
+            #    CREATE TABLE tmp2  AS
+            #        SELECT DISTINCT *
+            #            FROM raw_recipe r
+            #            LEFT OUTER JOIN tmp t
+            #            ON r.comp = t.comp and r.subcomp = t.subcomp
+            #            and r.recipeName = t.recipeName
+            #            and r.simaproName = t.simaproName
+            #            and r.cas=t.cas and r.unit = t.unit
+            #        UNION
+            #        SELECT DISTINCT *
+            #            FROM tmp t
+            #            LEFT OUTER JOIN raw_recipe r
+            #            ON r.comp = t.comp and r.subcomp = t.subcomp
+            #            and r.recipeName = t.recipeName
+            #            and r.simaproName = t.simaproName
+            #            and r.cas=t.cas and r.unit = t.unit;
+
+            #    drop table if exists raw_recipe;
+            #    create table raw_recipe as select distinct * from tmp2;
+            #    """)
+
+
+        print("Done with concatenating")
+
+        IPython.embed()
+
+        # Add empty column for (later) hosting substid
+
+        # Define numerical index
         raw_recipe.reset_index(inplace=True)
-        raw_recipe.index.names = ['rawId']
 
-        raw_recipe.cas = raw_recipe.cas.str.replace('^[0]*','')
 
+        # TODO: this should go somewhere else
         self.STR.casNumber = self.STR.casNumber.str.replace('^[0]*','')
 
-        raw_recipe.to_sql('raw_recipe', self.conn)
+        raw_recipe.to_sql('tmp', self.conn, if_exists='replace', index=False)
+
+        c.execute( """
+        insert into raw_recipe(comp, subcomp, name1, name2, cas, unit, impactId, factorValue)
+        select distinct comp, subcomp, recipeName, simaproName, cas,
+        unit, impactId, factorValue
+        from tmp;
+        """)
+
         # major cleanup
         fd = open('clean_recipe.sql', 'r')
         sqlFile = fd.read()
