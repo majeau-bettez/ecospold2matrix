@@ -2020,6 +2020,9 @@ class Ecospold2Matrix(object):
     # Characterisation factors matching
     # =========================================================================
     def initialize_database(self):
+        """ Define tables of SQlite database for matching stressors to
+        characterisation factors
+        """
 
         c = self.conn.cursor()
         c.execute('PRAGMA foreign_keys = ON;')
@@ -2041,8 +2044,9 @@ class Ecospold2Matrix(object):
                 cas          TEXT    CHECK (cas NOT LIKE '0%'),
                 tag          TEXT,
                 unit         TEXT,
-                impactId     TEXT REFERENCES impacts,
+                impactId     TEXT,
                 factorValue  REAL,
+                substId      INTEGER,
                 UNIQUE(comp, subcomp, name1, name2, cas, unit, impactId)
                 );
 
@@ -2287,7 +2291,128 @@ class Ecospold2Matrix(object):
 
         self.conn.commit()
 
+    def process_ecoinvent_elementary_flows(self):
+        """Input inventoried stressor flow table (STR) to database and clean up
+
+        DEPENDENCIES :
+            self.STR must be defined
+        """
+
+        # clean up: remove leading zeros in front of CAS numbers
+        self.STR.casNumber = self.STR.casNumber.str.replace('^[0]*','')
+        
+        # export to labels_ecoinvent SQL table
+        c = self.conn.cursor()
+        self.STR.to_sql('tmp',
+                        self.conn,
+                        index_label='ecorawId',
+                        if_exists='replace')
+        c.execute( """
+        INSERT INTO labels_ecoinvent(ecorawId, name, comp, subcomp, unit, cas)
+        SELECT DISTINCT ecorawId, name, compartment, subcompartment, unit, casNumber
+        FROM tmp;
+        """)
+
+        # clean up and commit
+        with open('clean_ecoinvent.sql', 'r') as f:
+                c.executescript(f.read())
+        self.conn.commit()
+
+    def integrate_flows_ecoinvent(self):
+        """ Populate substances, comp, subcomp, etc. from inventoried flows
+        """
+
+        # Populate comp and subcomp
+        c = self.conn.cursor()
+        c.executescript(
+            """
+                INSERT INTO comp(compName)
+                SELECT DISTINCT comp FROM labels_ecoinvent
+                WHERE comp NOT IN (SELECT compName FROM comp);
+
+                INSERT INTO subcomp (subcompName)
+                SELECT DISTINCT subcomp FROM labels_ecoinvent
+                WHERE subcomp IS NOT NULL
+                and subcomp not in (select subcompname from subcomp);
+            """)
+
+        # populate obs2char_subcomp with object attribute: the matching between
+        # subcompartments in inventories and in characterisation method
+        self.obs2char_subcomp.to_sql('obs2char_subcomps',
+                                     self.conn,
+                                     if_exists='replace',
+                                     index=False)
+
+        # populate schemes, substances, names, etc. with 
+        with open('integrate_flows_ecoinvent.sql', 'r') as f:
+            c.executescript(f.read())
+
+        self.conn.commit()
+
+    def extract_old_stressor_labels(self):
+
+        c = self.conn.cursor()
+        self.STR_old.to_sql('tmp', self.conn, if_exists='replace', index=False)
+
+        c.executescript("""
+
+            UPDATE tmp
+            SET cas = NULL
+            WHERE length(cas)<>11 AND cas IS NOT NULL;
+
+            DROP TABLE IF EXISTS old_labels;
+
+            CREATE TABLE old_labels(
+            oldid       INTEGER NOT NULL  primary key,
+            ardaid      integer NOT NULL UNIQUE,
+            ecoinvent_name  text,
+            simapro_name    text,
+            recipe_name text,
+            cas         text    CHECK (length(cas)=11 OR cas IS NULL),
+            dsid        integer,
+            comp        text,
+            subcomp     text,
+            unit        text,
+            substid     TEXT,
+            covered_before  boolean,
+            covered_new boolean
+            );
+
+            INSERT INTO old_labels(ardaid,
+                                   ecoinvent_name,
+                                   simapro_name,
+                                  recipe_name,
+                                   cas,
+                                   comp,
+                                   subcomp,
+                                   unit)
+            SELECT DISTINCT ardaid,
+                            ecoinvent_name,
+                            simapro_name,
+                            recipe_name,
+                            cas,
+                            comp,
+                            subcomp,
+                            unit
+            FROM tmp;
+
+
+            """)
+
+        self.conn.commit()
+
     def read_characterisation(self):
+        """Input characterisation factor table (STR) to database and clean up
+        """
+
+        def xlsrange(wb, sheetname, rangename):
+            ws = wb.sheet_by_name(sheetname)
+            ix = xlwt.Utils.cellrange_to_rowcol_pair(rangename)
+            values = []
+            for i in range(ix[1],ix[3]+1):
+                values.append(tuple(ws.col_values(i, ix[0], ix[2]+1)))
+            return values
+
 
         c = self.conn.cursor()
 
@@ -2299,41 +2424,33 @@ class Ecospold2Matrix(object):
         #         values.append(ws.row_values(i, ix[1], ix[3]+1))
         #     return values
 
-        def xlsrange(wb, sheetname, rangename):
-            ws = wb.sheet_by_name(sheetname)
-            ix = xlwt.Utils.cellrange_to_rowcol_pair(rangename)
-            values = []
-            for i in range(ix[1],ix[3]+1):
-                values.append(tuple(ws.col_values(i, ix[0], ix[2]+1)))
-            return values
-
         # sheet reading parameters
         hardcoded = [
                 {'name':'FEP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
                 {'name':'MEP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
                 {'name':'GWP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'ODP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'AP'  , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'POFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'PMFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'IRP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'LOP' , 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'},
-             #   {'name':'LTP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'WDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'MDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'FDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'TP'  , 'rows':5, 'range':'B:S', 'midpoint':'H4:S6'}
+                {'name':'ODP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'AP'  , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'POFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'PMFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'IRP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'LOP' , 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'},
+                {'name':'LTP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'WDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+              {'name':'MDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+              {'name':'FDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+              {'name':'TP'  , 'rows':5, 'range':'B:S', 'midpoint':'H4:S6'}
                 ]
         headers = ['comp','subcomp','recipeName','simaproName','cas','unit']
         self.log.info("Careful, make sure you shift headers to the right by 1 column in FDP sheet of ReCiPe111.xlsx")
-        
+
 
         # Get all impact categories directly from excel file
         wb = xlrd.open_workbook('ReCiPe111.xlsx')
         imp =[]
         for i in range(len(hardcoded)):
             sheet = hardcoded[i]
-            imp = imp + xlsrange(wb, sheet['name'],sheet['midpoint'])
+            imp = imp + xlsrange(wb, sheet['name'], sheet['midpoint'])
 
         c.executemany('''insert into impacts(perspective, unit, impactId)
                          values(?,?,?)''', imp)
@@ -2356,6 +2473,7 @@ class Ecospold2Matrix(object):
             foo.rename(columns={'subcompartment':'subcomp',
                                 'Subcompartment':'subcomp',
                                 'Compartment':'comp',
+                                'Compartments':'comp',
                                 'Substance name (ReCiPe)':'recipeName',
                                 'Substance name (SimaPro)':'simaproName',
                                 'CAS number': 'cas',
@@ -2412,25 +2530,51 @@ class Ecospold2Matrix(object):
 
         print("Done with concatenating")
 
-        IPython.embed()
-
         # Add empty column for (later) hosting substid
 
         # Define numerical index
         raw_recipe.reset_index(inplace=True)
 
 
-        # TODO: this should go somewhere else
-        self.STR.casNumber = self.STR.casNumber.str.replace('^[0]*','')
-
         raw_recipe.to_sql('tmp', self.conn, if_exists='replace', index=False)
 
+        #c.executescript("""
+        #UPDATE tmp SET comp=trim((lower(comp))),
+        #               subcomp=trim((lower(subcomp)));
+        #UPDATE tmp set subcomp='unspecified'
+        #       where subcomp is null or subcomp='(unspecified)';
+        #UPDATE tmp set
+        #       subcomp='low population density' where subcomp='low. pop.';
+        #UPDATE tmp set
+        #       subcomp='high population density' where subcomp='high. pop.';
+        #UPDATE tmp set comp='resource' where comp='raw';
+        #""")
+
+        #
+        # c.executescript("""
+        # insert or ignore into comp(compName) select distinct comp from tmp;
+        # insert or ignore into subcomp(subcompName)
+        #         select distinct subcomp from tmp;
+        # """)
+
+
         c.execute( """
-        insert into raw_recipe(comp, subcomp, name1, name2, cas, unit, impactId, factorValue)
+        insert into raw_recipe(
+                comp, subcomp, name1, name2, cas, unit, impactId, factorValue)
         select distinct comp, subcomp, recipeName, simaproName, cas,
         unit, impactId, factorValue
         from tmp;
         """)
+
+        # c.execute("""
+        # select * from tmp t
+        # where not exists(select 1 from raw_recipe r
+        #                  where t.comp=r.comp
+        #                  and t.subcomp=r.subcomp
+        #                  and t.recipeName=r.name1
+        #                  and t.impactId=r.impactId
+        #                  and t.factorValue=r.factorValue);
+        # """)
 
         # major cleanup
         fd = open('clean_recipe.sql', 'r')
@@ -2441,6 +2585,8 @@ class Ecospold2Matrix(object):
         self.conn.commit()
 
     def integrate_flows_recipe(self):
+        """ Populate substances, comp, subcomp, etc. from characterized flows
+        """
 
         c = self.conn.cursor()
         c.executescript(
@@ -2525,101 +2671,6 @@ class Ecospold2Matrix(object):
         FROM sparse_factors AS sp
         WHERE sp.substid NOT IN (SELECT b.substid FROM bad b);
         """, method)
-
-        self.conn.commit()
-
-    def process_ecoinvent_elementary_flows(self):
-        c = self.conn.cursor()
-
-        self.STR.to_sql('tmp',
-                        self.conn,
-                        index_label='ecorawId',
-                        if_exists='replace')
-
-        c.executescript(
-        """
-        INSERT INTO labels_ecoinvent(ecorawId, name, comp, subcomp, unit, cas)
-        SELECT DISTINCT ecorawId, name, compartment, subcompartment, unit, casNumber
-        FROM tmp;
-        """
-        )
-
-        with open('clean_ecoinvent.sql', 'r') as f:
-                c.executescript(f.read())
-
-        self.conn.commit()
-
-    def extract_old_stressor_labels(self):
-
-        c = self.conn.cursor()
-        self.STR_old.to_sql('tmp', self.conn, if_exists='replace', index=False)
-
-        c.executescript("""
-
-            UPDATE tmp
-            SET cas = NULL
-            WHERE length(cas)<>11 AND cas IS NOT NULL;
-
-            DROP TABLE IF EXISTS old_labels;
-
-            CREATE TABLE old_labels(
-            oldid       INTEGER NOT NULL  primary key,
-            ardaid      integer NOT NULL UNIQUE,
-            ecoinvent_name  text,
-            simapro_name    text,
-            recipe_name text,
-            cas         text    CHECK (length(cas)=11 OR cas IS NULL),
-            dsid        integer,
-            comp        text,
-            subcomp     text,
-            unit        text,
-            substid     TEXT,
-            covered_before  boolean,
-            covered_new boolean
-            );
-
-            INSERT INTO old_labels(ardaid,
-                                   ecoinvent_name,
-                                   simapro_name,
-                                  recipe_name,
-                                   cas,
-                                   comp,
-                                   subcomp,
-                                   unit)
-            SELECT DISTINCT ardaid,
-                            ecoinvent_name,
-                            simapro_name,
-                            recipe_name,
-                            cas,
-                            comp,
-                            subcomp,
-                            unit
-            FROM tmp;
-
-
-            """)
-
-        self.conn.commit()
-
-    def integrate_flows_ecoinvent(self):
-        c = self.conn.cursor()
-        c.executescript(
-            """
-                INSERT INTO comp(compName)
-                SELECT DISTINCT comp FROM labels_ecoinvent
-                WHERE comp NOT IN (SELECT compName FROM comp);
-
-                INSERT INTO subcomp (subcompName)
-                SELECT DISTINCT subcomp FROM labels_ecoinvent
-                WHERE subcomp IS NOT NULL
-                and subcomp not in (select subcompname from subcomp);
-            """)
-        self.obs2char_subcomp.to_sql('obs2char_subcomps',
-                                     self.conn,
-                                     if_exists='replace',
-                                     index=False)
-        with open('integrate_flows_ecoinvent.sql', 'r') as f:
-            c.executescript(f.read())
 
         self.conn.commit()
 
