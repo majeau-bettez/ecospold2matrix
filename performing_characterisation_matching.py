@@ -41,6 +41,8 @@ self.STR_old = pd.DataFrame(a, columns=matlab_tools.mine_nested_array(matdict['S
 parser.initialize_database()
 parser.process_ecoinvent_elementary_flows()
 self.integrate_flows_ecoinvent()
+print('DONE!!!')
+IPython.embed()
 
 
 # In[ ]:

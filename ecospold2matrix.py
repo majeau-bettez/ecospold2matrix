@@ -2027,269 +2027,14 @@ class Ecospold2Matrix(object):
         c = self.conn.cursor()
         c.execute('PRAGMA foreign_keys = ON;')
         self.conn.commit()
-        c.executescript("""
 
-            -- ==================================================
-            -- TEMPORARY TABLES TO FACILITATE INPUT OF DATA
-            -- ==================================================
-
-            DROP table if exists raw_recipe;
-
-            CREATE TABLE raw_recipe(
-                id           INTEGER NOT NULL PRIMARY KEY,
-                comp         TEXT,
-                subcomp      TEXT,
-                name1        TEXT,
-                name2        TEXT,
-                cas          TEXT    CHECK (cas NOT LIKE '0%'),
-                tag          TEXT,
-                unit         TEXT,
-                impactId     TEXT,
-                factorValue  REAL,
-                substId      INTEGER,
-                UNIQUE(comp, subcomp, name1, name2, cas, unit, impactId)
-                );
-
-            DROP TABLE IF EXISTS labels;
-            CREATE table labels(
-                labelId     INTEGER NOT NULL PRIMARY KEY,
-                substId     INTEGER,
-                comp        TEXT    references comp(compName),
-                subcomp     TEXT    references subcomp(subcompName),
-                name        TEXT,
-                name2       TEXT,
-                cas         text    CHECK (cas NOT LIKE '0%'),
-                tag         TEXT,
-                unit        TEXT
-                -- Cannot put uniqueness constraints, data in a mess
-           );
-
-            DROP TABLE IF EXISTS labels_ecoinvent;
-            CREATE TABLE labels_ecoinvent(
-                ecorawId    SERIAL  NOT NULL PRIMARY KEY,
-                substId     INTEGER REFERENCES substances,
-                name        TEXT    NOT NULL,
-                tag         TEXT    DEFAULT NULL,
-                comp        TEXT    NOT NULL,
-                subcomp     TEXT    ,
-                formula     TEXT    ,
-                unit        TEXT    ,
-                cas         text    CHECK (cas NOT LIKE '0%'),
-                dsid        integer,
-                name2       TEXT
-                -- Cannot put uniqueness constraints, data in a mess
-                );
-
-
-            --=================================================
-            -- KEY TABLES
-            --=================================================
-
-            DROP TABLE IF EXISTS substances;
-            CREATE TABLE substances(
-                substId     INTEGER NOT NULL PRIMARY KEY,
-                formula     TEXT,
-                cas         text    CHECK (cas NOT LIKE '0%'),
-                tag         TEXT    DEFAULT NULL,
-                aName       text,
-                unit        text    NOT NULL,
-                CONSTRAINT uniqueSubstanceCas UNIQUE(cas, tag, unit),
-                CONSTRAINT uniqueSubstanceName UNIQUE(aName, tag, unit)
-            );
-
-            DROP TABLE IF EXISTS schemes;
-            CREATE TABLE schemes(
-                SchemeId    INTEGER     NOT NULL    PRIMARY KEY ,
-                name        TEXT        NOT NULL    UNIQUE
-            );
-
-            DROP TABLE IF EXISTS Names;
-            CREATE TABLE Names(
-                nameId      INTEGER NOT NULL    PRIMARY KEY,
-                name        TEXT    NOT NULL,
-                substId     INT     NOT NULL    REFERENCES substances,
-                UNIQUE(name, substId)
-            );
-
-            DROP TABLE IF EXISTS nameHasScheme;
-            CREATE TABLE nameHasScheme(
-                nameId      INTEGER NOT NULL    REFERENCES names,
-                schemeId    INTEGER NOT NULL    REFERENCES schemes,
-                UNIQUE(nameId, schemeId)
-            );
-
-            DROP TABLE IF EXISTS comp;
-            CREATE TABLE comp(
-                compName    TEXT    PRIMARY KEY
-            );
-
-            DROP TABLE IF EXISTS subcomp;
-            CREATE TABLE subcomp(
-                subcompName TEXT    PRIMARY KEY,
-                parentcomp  TEXT    REFERENCES comp(compName)
-            );
-
-            -- elementary flow tables (named observed flows for no good reason)
-            DROP TABLE IF EXISTS observedflows;
-            CREATE TABLE observedflows(
-                id          INTEGER     NOT NULL PRIMARY KEY,
-                elflow_id   integer     UNIQUE,
-                substId     INTEGER     NOT NULL REFERENCES substances,
-                comp        TEXT        NOT NULL references comp,
-                subcomp     TEXT        references subcomp,
-                ardaId      integer     UNIQUE,
-                CONSTRAINT uniqueFlow UNIQUE(elflow_id, substId, comp, subcomp)
-            );
-
-            drop table if exists old_labels;
-            create table old_labels(
-                oldid       INTEGER NOT NULL  primary key,
-                fullname    text,
-                ardaid      integer not null,
-                name        text not null,
-                dsid        integer not null,
-                infrastructure  text,
-                location    text,
-                comp        text,
-                subcomp     text,
-                unit        text ,
-                covered_before  boolean not null,
-                covered_new boolean default false
-            );
-
-            DROP TABLE IF EXISTS impacts;
-            CREATE TABLE impacts (
-                impactId        TEXT    PRIMARY KEY,
-                long_name       TEXT    ,
-                scope           text    ,
-                perspective     text    not null,
-                unit            TEXT    not null,
-                referenceSubstId    INTEGER --REFERENCES substances(substId)    
-            );
-
-            DROP TABLE IF EXISTS factors;
-            CREATE TABLE factors(
-                factorId    INTEGER     NOT NULL PRIMARY KEY,
-                substId     integer     NOT NULL REFERENCES substances,
-                comp        text        NOT NULL REFERENCES comp(compName),
-                subcomp     text                 REFERENCES subcomp(subcompName),
-                unit        text        NOT NULL,
-                impactId    TEXT        NOT NULL     REFERENCES impacts,
-                method      TEXT,
-                factorValue double precision    not null,
-                UNIQUE (substId, comp, subcomp, impactId,  method)
-            );
-
-            --==========================================
-            -- MATCHING ELEMENTARY FLOWS ANC CHAR FACTORS
-            --===========================================
-
-            -- Define the "default" subcompartment amongst all the
-            -- subcompartments of a parent compartment. Useful for
-            -- characterisation methods that do not define factors for the parent
-            -- compartment (i.e. no "unspecified" subcompartment).
-
-            DROP TABLE IF EXISTS fallback_sc;
-            CREATE TABLE fallback_sc(
-                comp    TEXT    not null    REFERENCES comp, 
-                subcomp TEXT    not null    REFERENCES subcomp,
-                method  TEXT
-            );
-
-            --  Table for matching the "observed" (best estimate) subcompartment
-            --  with the best fitting comp/subcompartment of characterisation
-            --  method
-
-            --  Kind of like the "proxy table" of
-            --  elementaryflow/characterisation factors. Could maybe find a
-            --  better name.
-
-            DROP TABLE IF EXISTS obs2char_subcomps;
-            CREATE TABLE obs2char_subcomps(
-                obs2charId  INTEGER NOT NULL    primary key,
-                comp        text    not null    ,
-                        --references comp(compName),--REFERENCES comp,
-                obs_sc      text    not null    ,
-                    --references subcomp(subcompName), -- observed subcomp
-                char_sc     text    not null    ,
-                            --references subcomp(subcompName),
-                            -- best match for a characterised subcomp
-                scheme      TEXT    ,
-                UNIQUE(comp, obs_sc, scheme)
-            );
-
-            DROP TABLE IF EXISTS obs2char;
-            CREATE TABLE obs2char(
-                obsflowId   INTEGER,
-                impactId    text    not null,
-                factorId    int not null,
-                factorValue double precision    not null,
-                scheme      TEXT,
-                UNIQUE(obsflowId, impactId, scheme)
-            );
-
-            --====================================
-            -- TEMPORARY TABLES
-            --====================================
-
-
-
-            -- DROP TABLE IF EXISTS synonyms;
-            -- CREATE TABLE synonyms(
-            --     rawId   INTEGER,
-            --     tag     TEXT,
-            --     name1   TEXT,
-            --     name2   TEXT,
-            --     unit    text
-            -- );
-
-            -- DROP TABLE IF EXISTS tempNamesWithoutCas;
-            -- CREATE TABLE tempNamesWithoutCas(
-            --     rawId INTEGER,
-            --     tag TEXT,
-            --     name1 TEXT,
-            --     name2 TEXT,
-            --     unit    text
-            -- );
-
-            -- DROP TABLE IF EXISTS singles;
-            -- CREATE TABLE singles(
-            --     rawId   INTEGER,
-            --     tag TEXT,
-            --     name    TEXT,
-            --     unit    text
-            -- );
-
-
-
-            DROP Table IF EXISTS bad;
-            CREATE TABLE bad(
-                sparseId        INTEGER REFERENCES sparse_factors,
-                substId         INTEGER DEFAULT NULL ,
-                comp            TEXT    ,
-                subcomp         TEXT    ,
-                unit            TEXT    ,
-                factorValue double precision,
-                impactId    TEXT
-            );
-
-            DROP TABLE IF EXISTS sparse_factors;
-            CREATE TABLE sparse_factors(
-                sparseId        INTEGER  PRIMARY KEY NOT NULL,
-                substId         INTEGER     DEFAULT NULL ,
-                comp            TEXT    ,
-                subcomp         TEXT    ,
-                unit            TEXT    ,
-                factorValue     double precision,
-                impactId        TEXT
-            );
-
-            """)
+        with open('initialize_database.sql','r') as f:
+            c.executescript(f.read())
+        self.conn.commit()
 
         self.log.warning("obs2char_subcomps constraints temporarily relaxed because not full recipe parsed")
 
 
-        self.conn.commit()
 
     def process_ecoinvent_elementary_flows(self):
         """Input inventoried stressor flow table (STR) to database and clean up
@@ -2300,15 +2045,15 @@ class Ecospold2Matrix(object):
 
         # clean up: remove leading zeros in front of CAS numbers
         self.STR.casNumber = self.STR.casNumber.str.replace('^[0]*','')
-        
-        # export to labels_ecoinvent SQL table
+
+        # export to tmp SQL table
         c = self.conn.cursor()
         self.STR.to_sql('tmp',
                         self.conn,
                         index_label='ecorawId',
                         if_exists='replace')
         c.execute( """
-        INSERT INTO labels_ecoinvent(ecorawId, name, comp, subcomp, unit, cas)
+        INSERT INTO raw_ecoinvent(ecorawId, name, comp, subcomp, unit, cas)
         SELECT DISTINCT ecorawId, name, compartment, subcompartment, unit, casNumber
         FROM tmp;
         """)
@@ -2327,11 +2072,11 @@ class Ecospold2Matrix(object):
         c.executescript(
             """
                 INSERT INTO comp(compName)
-                SELECT DISTINCT comp FROM labels_ecoinvent
+                SELECT DISTINCT comp FROM raw_ecoinvent
                 WHERE comp NOT IN (SELECT compName FROM comp);
 
                 INSERT INTO subcomp (subcompName)
-                SELECT DISTINCT subcomp FROM labels_ecoinvent
+                SELECT DISTINCT subcomp FROM raw_ecoinvent
                 WHERE subcomp IS NOT NULL
                 and subcomp not in (select subcompname from subcomp);
             """)
@@ -2343,10 +2088,88 @@ class Ecospold2Matrix(object):
                                      if_exists='replace',
                                      index=False)
 
-        # populate schemes, substances, names, etc. with 
-        with open('integrate_flows_ecoinvent.sql', 'r') as f:
-            c.executescript(f.read())
+        self.conn.commit()
+        c.executescript(
+        """
+        -- ======================================
+        -- ECOINVENT SUBSTANCES
+        -- ======================================
 
+        -- 2.1 Add Schemes
+
+        INSERT INTO schemes(NAME) SELECT 'ecoinvent31' WHERE NOT EXISTS(SELECT 1 FROM schemes WHERE schemes.NAME='ecoinvent31');
+
+        -- 2.2 A new substance for each new cas+tag
+                -- this will automatically ignore any redundant cas-tag-unit combination
+        insert OR ignore  into substances(aName, cas, tag, unit)
+        select distinct r.name, r.cas, r.tag, r.unit from raw_ecoinvent AS r
+        WHERE r.cas is not null AND r.NAME IS NOT NULL
+        UNION
+        select distinct r.name2, r.cas, r.tag, r.unit from raw_ecoinvent AS r
+        WHERE r.cas is not null AND r.name IS NULL
+        ;
+
+        -- 2.4: backfill labels with substid based on CAS-tag-unit
+        UPDATE OR ignore raw_ecoinvent
+        SET substid=(
+                SELECT s.substid
+                FROM substances as s
+                WHERE raw_ecoinvent.cas=s.cas
+                AND raw_ecoinvent.tag IS s.tag
+                AND raw_ecoinvent.unit=s.unit
+                )
+        WHERE raw_ecoinvent.substid IS NULL
+        ;
+        """)
+        print("part 1 done")
+
+        c.executescript("""
+
+        -- 2.5: Create new substances for the remaining flows
+        INSERT OR ignore INTO substances(aName, cas, tag, unit)
+        SELECT DISTINCT name, cas, tag, unit
+        FROM raw_ecoinvent r WHERE r.substid IS NULL AND r.name IS NOT NULL
+        UNION
+        SELECT DISTINCT name2, cas, tag, unit
+        FROM raw_ecoinvent r WHERE r.substid IS NULL AND r.name IS NULL
+        ;
+
+        -- 2.6: backfill labels with substid based on name-tag-unit
+        UPDATE raw_ecoinvent
+        SET substid=(
+                SELECT s.substid
+                FROM substances s
+                WHERE (raw_ecoinvent.name=s.aName OR raw_ecoinvent.name2=s.aName)
+                AND raw_ecoinvent.tag IS s.tag
+                AND raw_ecoinvent.unit=s.unit
+                )
+        WHERE substid IS NULL
+        ;
+        """) # 2.6
+
+        # TODO: fails strangely
+        # todo: sqlite3.OperationalError: foreign key mismatch - "labels_ecoinvent"
+        # referencing "names"
+        c.executescript("""
+        -- 2.7 Register substid-name pairs
+        INSERT OR IGNORE INTO names (NAME, substid)
+        SELECT DISTINCT r.name, r.substid FROM raw_ecoinvent r
+        UNION
+        SELECT DISTINCT r.name2, r.substid FROM raw_ecoinvent r
+        ;
+        """)
+        c.executescript("""
+        insert into nameHasScheme
+        select distinct n.nameId, s.schemeId from names n, schemes s
+        where n.name in (select distinct name from raw_ecoinvent)
+        and s.name='ecoinvent31';
+        -- ;
+
+        """) # the very end
+#        # populate schemes, substances, names, etc. with 
+#        with open('integrate_flows_ecoinvent.sql', 'r') as f:
+#            c.executescript(f.read())
+#
         self.conn.commit()
 
     def extract_old_stressor_labels(self):
