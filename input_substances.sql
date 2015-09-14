@@ -13,7 +13,7 @@ INSERT INTO schemes(NAME) SELECT 'recipe111' WHERE NOT EXISTS(SELECT 1 FROM sche
 -- -- 2.1*: single name column regardless of scheme
 -- -- todo: useful?
 -- INSERT INTO labels (comp, subcomp, Name, cas, tag, unit )
--- SELECT DISTINCT comp, subcomp, name1, cas, tag, unit FROM raw_recipe UNION SELECT DISTINCT comp, subcomp, name2, cas, tag, unit FROM raw_recipe;
+-- SELECT DISTINCT comp, subcomp, name, cas, tag, unit FROM raw_recipe UNION SELECT DISTINCT comp, subcomp, name2, cas, tag, unit FROM raw_recipe;
 
 
 -- todo: Already done in step 1?
@@ -26,11 +26,11 @@ INSERT INTO schemes(NAME) SELECT 'recipe111' WHERE NOT EXISTS(SELECT 1 FROM sche
 -- 2.2 New substance for every new CAS + tag
 	-- this will automatically ignore any redundant cas-tag-unit combination
 INSERT OR ignore INTO substances (aName, cas, tag, unit)
-SELECT DISTINCT r.name1, r.cas, r.tag, r.unit FROM raw_recipe r
-WHERE r.cas IS NOT NULL AND r.name1 IS NOT NULL
+SELECT DISTINCT r.name, r.cas, r.tag, r.unit FROM raw_recipe r
+WHERE r.cas IS NOT NULL AND r.name IS NOT NULL
 UNION
 SELECT DISTINCT r.name2, r.cas, r.tag, r.unit FROM raw_recipe r
-WHERE r.cas IS NOT NULL AND r.name1 IS NULL
+WHERE r.cas IS NOT NULL AND r.name IS NULL
 ;
 
 
@@ -48,11 +48,11 @@ WHERE raw_recipe.substid IS NULL
 
 -- 2.5: Create new substances for the remaining flows
 INSERT INTO substances(aName, cas, tag, unit)
-SELECT DISTINCT name1, cas, tag, unit
-FROM raw_recipe r WHERE r.substid IS NULL AND r.name1 IS NOT NULL
+SELECT DISTINCT name, cas, tag, unit
+FROM raw_recipe r WHERE r.substid IS NULL AND r.name IS NOT NULL
 UNION
 SELECT DISTINCT name2, cas, tag, unit
-FROM raw_recipe r WHERE r.substid IS NULL AND r.name1 IS NULL
+FROM raw_recipe r WHERE r.substid IS NULL AND r.name IS NULL
 ;
 
 -- 2.6: backfill labels with substid based on name-tag-unit
@@ -60,7 +60,7 @@ UPDATE raw_recipe
 SET substid=(
 	SELECT s.substid
 	FROM substances s
-	WHERE (raw_recipe.name1=s.aName OR raw_recipe.name2=s.aName)
+	WHERE (raw_recipe.name=s.aName OR raw_recipe.name2=s.aName)
 	AND raw_recipe.tag IS s.tag
 	AND raw_recipe.unit=s.unit
 	)
@@ -70,7 +70,7 @@ WHERE substid IS NULL
 
 -- 2.7 Register substid-name pairs
 INSERT OR IGNORE INTO names (name)
-SELECT DISTINCT r.name1 FROM raw_recipe r
+SELECT DISTINCT r.name FROM raw_recipe r
 UNION
 SELECT DISTINCT r.name2 FROM raw_recipe r
 ;
@@ -78,25 +78,25 @@ SELECT DISTINCT r.name2 FROM raw_recipe r
 
 	-- -- -- This leaves us with all the names that have no cas. We group into synonyms and singles
 	-- -- 
-	-- -- INSERT INTO tempNamesWithoutCas(rawId, tag, name1, name2, unit)
+	-- -- INSERT INTO tempNamesWithoutCas(rawId, tag, name, name2, unit)
 	-- -- SELECT * FROM (
-	-- -- 	SELECT rawId, tag, name1, name2, unit FROM raw_recipe r
+	-- -- 	SELECT rawId, tag, name, name2, unit FROM raw_recipe r
 	-- -- 	WHERE r.cas IS null 
-	-- -- 	ORDER BY name1, name2, tag, unit)
-	-- -- GROUP BY name1, name2, tag, unit;
+	-- -- 	ORDER BY name, name2, tag, unit)
+	-- -- GROUP BY name, name2, tag, unit;
 	-- -- 
 	-- -- 
-	-- -- INSERT INTO synonyms(rawId, tag, name1, name2, unit)
+	-- -- INSERT INTO synonyms(rawId, tag, name, name2, unit)
 	-- -- SELECT * FROM(
-	-- -- 	SELECT rawId, tag, name1, name2, unit  FROM tempNamesWithoutCas
-	-- -- 	WHERE name1 IS NOT NULL AND name2 IS NOT NULL
-	-- -- 	ORDER BY name1, name2, tag, unit)
-	-- -- GROUP BY name1, name2, tag, unit;
+	-- -- 	SELECT rawId, tag, name, name2, unit  FROM tempNamesWithoutCas
+	-- -- 	WHERE name IS NOT NULL AND name2 IS NOT NULL
+	-- -- 	ORDER BY name, name2, tag, unit)
+	-- -- GROUP BY name, name2, tag, unit;
 	-- -- 
 	-- -- INSERT INTO singles(name, tag, unit)
 	-- -- SELECT * FROM (
-	-- -- SELECT DISTINCT t.name1, t.tag, t.unit FROM tempNamesWithoutCAS t, synonyms sy
-	-- -- WHERE t.name1 IS NOT NULL AND NOT EXISTS (SELECT 1 FROM synonyms sy WHERE sy.NAME1=t.name1 OR sy.name2=t.name1)
+	-- -- SELECT DISTINCT t.name, t.tag, t.unit FROM tempNamesWithoutCAS t, synonyms sy
+	-- -- WHERE t.name IS NOT NULL AND NOT EXISTS (SELECT 1 FROM synonyms sy WHERE sy.NAME1=t.name OR sy.name2=t.name)
 	-- -- UNION 
 	-- -- SELECT DISTINCT t.name2, t.tag, t.unit FROM tempNamesWithoutCAS t, synonyms sy
 	-- -- WHERE t.name2 IS NOT NULL AND NOT EXISTS (SELECT 1 FROM synonyms sy WHERE sy.NAME1=t.name2 OR sy.name2=t.name2)
@@ -108,24 +108,24 @@ SELECT DISTINCT r.name2 FROM raw_recipe r
 
 -- INSERT INTO names (NAME, substId)
 -- SELECT sy.name2, n.substId FROM synonyms sy, names n
--- WHERE sy.name1=n.name  AND (sy.name2 NOT IN (SELECT n.NAME FROM  names n))
+-- WHERE sy.name=n.name  AND (sy.name2 NOT IN (SELECT n.NAME FROM  names n))
 -- UNION
--- SELECT sy.name1, n.substId FROM synonyms sy, names n
--- WHERE sy.name2=n.name AND sy.name1 NOT IN (SELECT n.NAME FROM names n)
+-- SELECT sy.name, n.substId FROM synonyms sy, names n
+-- WHERE sy.name2=n.name AND sy.name NOT IN (SELECT n.NAME FROM names n)
 -- ;
 -- 
 -- -- create substance for each pair when none of the synonyms are found
 -- INSERT INTO substances (aName, tag, unit) 
--- SELECT DISTINCT sy.name1, sy.tag, sy.unit FROM synonyms sy, names n
+-- SELECT DISTINCT sy.name, sy.tag, sy.unit FROM synonyms sy, names n
 -- WHERE NOT EXISTS ( SELECT 1 FROM names n WHERE
--- 			sy.name1 = n.NAME OR sy.name2 = n.NAME);
+-- 			sy.name = n.NAME OR sy.name2 = n.NAME);
 -- 
 -- INSERT INTO names (substId, name)
--- SELECT s.substid, sy.name1 FROM substances s, synonyms sy
--- WHERE s.aName = sy.name1 AND NOT EXISTS ( SELECT 1 FROM names n WHERE sy.name1 = n.NAME)
+-- SELECT s.substid, sy.name FROM substances s, synonyms sy
+-- WHERE s.aName = sy.name AND NOT EXISTS ( SELECT 1 FROM names n WHERE sy.name = n.NAME)
 -- UNION
 -- SELECT s.substid, sy.name2 FROM substances s, synonyms sy
--- WHERE s.aName = sy.name1 AND NOT EXISTS ( SELECT 1 FROM names n WHERE sy.name2 = n.NAME);
+-- WHERE s.aName = sy.name AND NOT EXISTS ( SELECT 1 FROM names n WHERE sy.name2 = n.NAME);
 -- 
 -- -- create new substance for all unmatched single names--
 -- INSERT INTO substances ( aName, tag, unit) 
@@ -144,7 +144,7 @@ SELECT DISTINCT r.name2 FROM raw_recipe r
 -- UPDATE raw_recipe
 -- SET substId = (SELECT n.substId
 -- 	       FROM names n, names n2
---                WHERE (n.NAME=raw_recipe.name1 OR raw_recipe.name1 IS NULL)
+--                WHERE (n.NAME=raw_recipe.name OR raw_recipe.name IS NULL)
 --          		AND (n2.NAME=name2 OR raw_recipe.name2 IS NULL)
 -- 		       	AND n.substId=n2.substid);
 -- 
@@ -152,7 +152,7 @@ SELECT DISTINCT r.name2 FROM raw_recipe r
 -- 2.8 : associate name with scheme
 insert into nameHasScheme
 select distinct n.nameId, s.schemeId from names n, schemes s
-where n.name in (select name1 from raw_recipe)
+where n.name in (select name from raw_recipe)
 and s.name='recipe111';
 
 insert into nameHasScheme

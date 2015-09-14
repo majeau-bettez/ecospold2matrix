@@ -2170,7 +2170,7 @@ class Ecospold2Matrix(object):
 
         c.execute( """
         insert into raw_recipe(
-                comp, subcomp, name1, name2, cas, unit, impactId, factorValue)
+                comp, subcomp, name, name2, cas, unit, impactId, factorValue)
         select distinct comp, subcomp, recipeName, simaproName, cas,
         unit, impactId, factorValue
         from tmp;
@@ -2276,7 +2276,7 @@ class Ecospold2Matrix(object):
         SELECT DISTINCT name2, tag, substId FROM raw_ecoinvent ;
 
         INSERT OR IGNORE INTO names (name, tag, substid)
-        SELECT DISTINCT name1, tag, substId FROM raw_recipe
+        SELECT DISTINCT name, tag, substId FROM raw_recipe
         UNION
         SELECT DISTINCT name2, tag, substId FROM raw_recipe ;
         """);
@@ -2317,11 +2317,11 @@ class Ecospold2Matrix(object):
         c.executescript("""
 
         INSERT OR ignore INTO substances (aName, cas, tag)
-        SELECT DISTINCT r.name1, r.cas, r.tag FROM raw_recipe r
-        WHERE r.cas IS NOT NULL AND r.name1 IS NOT NULL
+        SELECT DISTINCT r.name, r.cas, r.tag FROM raw_recipe r
+        WHERE r.cas IS NOT NULL AND r.name IS NOT NULL
         UNION
         SELECT DISTINCT r.name2, r.cas, r.tag FROM raw_recipe r
-        WHERE r.cas IS NOT NULL AND r.name1 IS NULL
+        WHERE r.cas IS NOT NULL AND r.name IS NULL
         ;
 
 
@@ -2345,7 +2345,7 @@ class Ecospold2Matrix(object):
         # update labels substid from names
         self._update_labels_from_names()
 
-        # new substances for new name1-tags in one dataset
+        # new substances for new name-tags in one dataset
         # update labels with substid from substances
         c.executescript("""
         -- 2.5: Create new substances for the remaining flows
@@ -2376,7 +2376,7 @@ class Ecospold2Matrix(object):
         # update labels substid from names
         self._update_labels_from_names()
 
-        # new substances for new name1-tags in one dataset
+        # new substances for new name-tags in one dataset
         # update labels with substid from substances
         c.executescript("""
         -- 2.5: Create new substances for the remaining flows

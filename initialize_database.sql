@@ -8,7 +8,7 @@ CREATE TABLE raw_recipe(
 id           INTEGER NOT NULL PRIMARY KEY,
 comp         TEXT,
 subcomp      TEXT,
-name1        TEXT,
+name        TEXT,
 name2        TEXT,
 cas          TEXT    CHECK (cas NOT LIKE '0%'),
 tag          TEXT,
@@ -16,7 +16,7 @@ unit         TEXT,
 impactId     TEXT,
 factorValue  REAL,
 substId      INTEGER,
-UNIQUE(comp, subcomp, name1, name2, cas, unit, impactId)
+UNIQUE(comp, subcomp, name, name2, cas, unit, impactId)
 );
 
 DROP TABLE IF EXISTS raw_ecoinvent;
@@ -226,7 +226,7 @@ UNIQUE(obsflowId, impactId, scheme)
 -- CREATE TABLE synonyms(
 --     rawId   INTEGER,
 --     tag     TEXT,
---     name1   TEXT,
+--     name   TEXT,
 --     name2   TEXT,
 --     unit    text
 -- );
@@ -235,7 +235,7 @@ UNIQUE(obsflowId, impactId, scheme)
 -- CREATE TABLE tempNamesWithoutCas(
 --     rawId INTEGER,
 --     tag TEXT,
---     name1 TEXT,
+--     name TEXT,
 --     name2 TEXT,
 --     unit    text
 -- );
