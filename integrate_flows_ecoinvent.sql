@@ -51,10 +51,10 @@ WHERE substid IS NULL
 ;
 
 -- 2.7 Register substid-name pairs
-INSERT OR IGNORE INTO names (NAME, substid)
-SELECT DISTINCT r.name, r.substid FROM raw_ecoinvent r
+INSERT OR IGNORE INTO names(name)
+SELECT DISTINCT r.name  FROM raw_ecoinvent r
 UNION
-SELECT DISTINCT r.name2, r.substid FROM raw_ecoinvent r
+SELECT DISTINCT r.name2 FROM raw_ecoinvent r
 ;
 
 insert into nameHasScheme

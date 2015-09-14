@@ -27,8 +27,6 @@ parser=e2m.Ecospold2Matrix('/mnt/collection/current_Version_3.1_cutoff_ecoSpold0
 self = parser
 c = self.conn.cursor()
 parser.get_labels()
-
-
 oldeco_path = '/home/bill/documents/arda/dev_arda_client/data/ecoinvent/2.2/Ecoinvent22_ReCiPe108_H.mat'
 matdict = scipy.io.loadmat(oldeco_path)
 a = np.array(matlab_tools.mine_nested_array(matdict['STR'], ''), dtype=object)
@@ -36,21 +34,11 @@ self.STR_old = pd.DataFrame(a, columns=matlab_tools.mine_nested_array(matdict['S
 
 
 
-# In[ ]:
 
 parser.initialize_database()
 parser.process_ecoinvent_elementary_flows()
-self.integrate_flows_ecoinvent()
-print('DONE!!!')
-IPython.embed()
-
-
-# In[ ]:
-
 parser.read_characterisation()
-
-
-# In[ ]:
-
-parser.integrate_flows_recipe()
+parser.populate_complementary_tables()
+os.system('cp ' + project_name + '_characterisation.db start_characterisation.db')
+print('DONE!!!')
 IPython.embed()

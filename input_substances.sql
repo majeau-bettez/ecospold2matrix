@@ -69,10 +69,10 @@ WHERE substid IS NULL
 
 
 -- 2.7 Register substid-name pairs
-INSERT OR IGNORE INTO names (name, substid)
-SELECT DISTINCT r.name1, r.substid FROM raw_recipe r
+INSERT OR IGNORE INTO names (name)
+SELECT DISTINCT r.name1 FROM raw_recipe r
 UNION
-SELECT DISTINCT r.name2, r.substid FROM raw_recipe r
+SELECT DISTINCT r.name2 FROM raw_recipe r
 ;
 
 

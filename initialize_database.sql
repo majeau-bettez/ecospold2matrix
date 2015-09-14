@@ -44,9 +44,11 @@ formula     TEXT,
 cas         text    CHECK (cas NOT LIKE '0%'),
 tag         TEXT    DEFAULT NULL,
 aName       text,
-unit        text    NOT NULL,
-CONSTRAINT uniqueSubstanceCas UNIQUE(cas, tag, unit),
-CONSTRAINT uniqueSubstanceName UNIQUE(aName, tag, unit)
+CONSTRAINT uniqueSubstanceCas UNIQUE(cas, tag),
+	-- ensure no cas conflict
+CONSTRAINT namePerSubstance UNIQUE(aName, tag)
+	-- though mostly for readability, aName still used in matching
+	-- ensure no name conflict
 );
 
 DROP TABLE IF EXISTS schemes;
@@ -59,8 +61,10 @@ DROP TABLE IF EXISTS Names;
 CREATE TABLE Names(
 nameId      INTEGER NOT NULL    PRIMARY KEY,
 name        TEXT    NOT NULL,
-substId     INT     NOT NULL    REFERENCES substances,
-UNIQUE(name, substId)
+tag	    TEXT,
+substId	    TEXT    REFERENCES substances,
+UNIQUE(NAME, tag),  --enforce a many-to-1 relation between name and substid
+UNIQUE(NAME, tag, substId)  --enforce a many-to-1 relation between name and substid
 );
 
 DROP TABLE IF EXISTS nameHasScheme;
@@ -133,21 +137,21 @@ UNIQUE (substId, comp, subcomp, impactId,  method)
 );
 
 DROP TABLE IF EXISTS labels_ecoinvent;
--- CREATE TABLE labels_ecoinvent(
--- ecorawId    SERIAL  NOT NULL PRIMARY KEY,
--- substId     INTEGER REFERENCES substances,
--- name        TEXT    NOT NULL references names(name),
--- tag         TEXT    DEFAULT NULL,
--- comp        TEXT    NOT NULL references comp(compName),
--- subcomp     TEXT    references subcomp(subcompName),
--- formula     TEXT    ,
--- unit        TEXT    ,
--- cas         text    CHECK (cas NOT LIKE '0%'),
--- dsid        integer,
--- name2       TEXT    references names(name)
--- -- Cannot put uniqueness constraints, data in a mess
--- -- name and name2 cannot reference names(name) because no unique constraint
--- );
+CREATE TABLE labels_ecoinvent(
+ecorawId    SERIAL  NOT NULL PRIMARY KEY,
+substId     INTEGER REFERENCES substances,
+name        TEXT    NOT NULL references names(name),
+tag         TEXT    DEFAULT NULL,
+comp        TEXT    NOT NULL references comp(compName),
+subcomp     TEXT    references subcomp(subcompName),
+formula     TEXT    ,
+unit        TEXT    ,
+cas         text    CHECK (cas NOT LIKE '0%'),
+dsid        integer,
+name2       TEXT    references names(name)
+-- Cannot put uniqueness constraints, data in a mess
+-- name and name2 cannot reference names(name) because no unique constraint
+);
 
 
 DROP TABLE IF EXISTS labels;
