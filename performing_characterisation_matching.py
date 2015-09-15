@@ -1,4 +1,4 @@
-fullrun = False
+fullrun = True
 
 import ecospold2matrix as e2m
 import imp

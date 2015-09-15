@@ -2050,11 +2050,11 @@ class Ecospold2Matrix(object):
         c = self.conn.cursor()
         self.STR.to_sql('tmp',
                         self.conn,
-                        index_label='ecorawId',
+                        index_label='id',
                         if_exists='replace')
         c.execute( """
-        INSERT INTO raw_ecoinvent(ecorawId, name, comp, subcomp, unit, cas)
-        SELECT DISTINCT ecorawId, name, compartment, subcompartment, unit, casNumber
+        INSERT INTO raw_ecoinvent(id, name, comp, subcomp, unit, cas)
+        SELECT DISTINCT id, name, compartment, subcompartment, unit, casNumber
         FROM tmp;
         """)
 
@@ -2241,10 +2241,12 @@ class Ecospold2Matrix(object):
 
         self.conn.commit()
 
-    def integrate_flows(self, tables=['raw_ecoinvent', 'raw_recipe']):
-        self._integrate_flows_withCAS()
-        self._integrate_flows_withoutCAS()
+    def integrate_flows(self, tables=('raw_ecoinvent', 'raw_recipe')):
+        self._integrate_flows_withCAS(tables)
+        self._integrate_flows_withoutCAS(tables)
+        self._finalize_labels(tables)
         self.conn.commit()
+
     def _update_labels_from_names(self, tables=('raw_ecoinvent', 'raw_recipe')):
 
         for table in tables:
@@ -2404,14 +2406,14 @@ class Ecospold2Matrix(object):
             if 'coinvent' in table:
                 t_out = 'labels_ecoinvent'
             else:
-                t_out = 'labels'
+                t_out = 'labels_char'
             print(t_out)
 
             self.conn.executescript("""
             INSERT INTO {to}(
-                ecorawId, substId, name, name2, tag, comp, subcomp, cas)
+                id, substId, name, name2, tag, comp, subcomp, cas, unit)
             SELECT DISTINCT
-                ecorawId, substId, name, name2, tag, comp, subcomp, cas
+                id, substId, name, name2, tag, comp, subcomp, cas, unit
             FROM {t};
 
             DROP TABLE IF EXISTS {t}

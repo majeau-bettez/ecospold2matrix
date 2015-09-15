@@ -20,7 +20,7 @@ UNIQUE(comp, subcomp, name, name2, tag, cas, unit, impactId));
 
 DROP TABLE IF EXISTS raw_ecoinvent;
 CREATE TABLE raw_ecoinvent(
-ecorawId    SERIAL  NOT NULL PRIMARY KEY,
+id    SERIAL  NOT NULL PRIMARY KEY,
 substId     INTEGER,
 name        TEXT    NOT NULL,
 name2       TEXT    ,
@@ -137,7 +137,7 @@ UNIQUE (substId, comp, subcomp, impactId,  method)
 
 DROP TABLE IF EXISTS labels_ecoinvent;
 CREATE TABLE labels_ecoinvent(
-ecorawId    SERIAL  NOT NULL PRIMARY KEY,
+id    SERIAL  NOT NULL PRIMARY KEY,
 substId     INTEGER REFERENCES substances,
 name        TEXT    NOT NULL,
 tag         TEXT    DEFAULT NULL,
@@ -155,17 +155,19 @@ FOREIGN KEY (name2, tag) REFERENCES names(name, tag)
 );
 
 
-DROP TABLE IF EXISTS labels;
-CREATE table labels(
-labelId     INTEGER NOT NULL PRIMARY KEY,
-substId     INTEGER,
-comp        TEXT    references comp(compName),
+DROP TABLE IF EXISTS labels_char;
+CREATE table labels_char(
+id	    INTEGER NOT NULL PRIMARY KEY,
+substId     INTEGER REFERENCES substances,
+comp        TEXT    NOT NULL references comp(compName),
 subcomp     TEXT    references subcomp(subcompName),
-name        TEXT,
+name        TEXT    NOT NULL,
 name2       TEXT,
 cas         text    CHECK (cas NOT LIKE '0%'),
 tag         TEXT,
-unit        TEXT
+unit        TEXT,
+FOREIGN KEY (name, tag) REFERENCES names(name, tag),
+FOREIGN KEY (name2, tag) REFERENCES names(name, tag)
 -- Cannot put uniqueness constraints, data in a mess
 );
 

@@ -68,7 +68,7 @@ and s.name='ecoinvent31';
 -- 
 -- -- SELECT 'match ecoinvent flow and substances' AS message;
 -- insert into dsid_substid 
--- select distinct l.ecorawId, s.substid
+-- select distinct l.id, s.substid
 -- from substances AS s, raw_ecoinvent as l, names AS n
 -- where l.name=n.name and n.substid=s.substid
 -- and l.unit=s.unit
