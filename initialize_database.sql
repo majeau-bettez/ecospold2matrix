@@ -8,16 +8,15 @@ CREATE TABLE raw_recipe(
 id           INTEGER NOT NULL PRIMARY KEY,
 comp         TEXT,
 subcomp      TEXT,
-name        TEXT,
+name         TEXT    NOT NULL,
 name2        TEXT,
 cas          TEXT    CHECK (cas NOT LIKE '0%'),
-tag          TEXT,
+tag          TEXT    NOT NULL DEFAULT '',
 unit         TEXT,
 impactId     TEXT,
 factorValue  REAL,
 substId      INTEGER,
-UNIQUE(comp, subcomp, name, name2, cas, unit, impactId)
-);
+UNIQUE(comp, subcomp, name, name2, tag, cas, unit, impactId));
 
 DROP TABLE IF EXISTS raw_ecoinvent;
 CREATE TABLE raw_ecoinvent(
@@ -25,7 +24,7 @@ ecorawId    SERIAL  NOT NULL PRIMARY KEY,
 substId     INTEGER,
 name        TEXT    NOT NULL,
 name2       TEXT    ,
-tag         TEXT    DEFAULT NULL,
+tag         TEXT    DEFAULT NULL DEFAULT '',
 comp        TEXT    NOT NULL,
 subcomp     TEXT    ,
 unit        TEXT    ,
@@ -61,7 +60,7 @@ DROP TABLE IF EXISTS Names;
 CREATE TABLE Names(
 nameId      INTEGER NOT NULL    PRIMARY KEY,
 name        TEXT    NOT NULL,
-tag	    TEXT,
+tag	    TEXT    NOT NULL DEFAULT '',
 substId	    TEXT    REFERENCES substances,
 UNIQUE(NAME, tag),  --enforce a many-to-1 relation between name and substid
 UNIQUE(NAME, tag, substId)  --enforce a many-to-1 relation between name and substid
@@ -140,7 +139,7 @@ DROP TABLE IF EXISTS labels_ecoinvent;
 CREATE TABLE labels_ecoinvent(
 ecorawId    SERIAL  NOT NULL PRIMARY KEY,
 substId     INTEGER REFERENCES substances,
-name        TEXT    NOT NULL references names(name),
+name        TEXT    NOT NULL,
 tag         TEXT    DEFAULT NULL,
 comp        TEXT    NOT NULL references comp(compName),
 subcomp     TEXT    references subcomp(subcompName),
@@ -148,7 +147,9 @@ formula     TEXT    ,
 unit        TEXT    ,
 cas         text    CHECK (cas NOT LIKE '0%'),
 dsid        integer,
-name2       TEXT    references names(name)
+name2       TEXT,
+FOREIGN KEY (name, tag) REFERENCES names(name, tag),
+FOREIGN KEY (name2, tag) REFERENCES names(name, tag)
 -- Cannot put uniqueness constraints, data in a mess
 -- name and name2 cannot reference names(name) because no unique constraint
 );

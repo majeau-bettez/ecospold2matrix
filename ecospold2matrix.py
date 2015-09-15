@@ -2090,24 +2090,25 @@ class Ecospold2Matrix(object):
         hardcoded = [
                 {'name':'FEP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
                 {'name':'MEP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'GWP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'ODP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'AP'  , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'POFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'PMFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'IRP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'LOP' , 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'},
-                {'name':'LTP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'WDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'MDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'FDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'TP'  , 'rows':5, 'range':'B:S', 'midpoint':'H4:S6'}
+                {'name':'GWP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'} #,
+             #   {'name':'ODP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'AP'  , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'POFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'PMFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'IRP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'LOP' , 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'},
+             #   {'name':'LTP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'WDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'MDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'FDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+             #   {'name':'TP'  , 'rows':5, 'range':'B:S', 'midpoint':'H4:S6'}
                  ]
         headers = ['comp','subcomp','recipeName','simaproName','cas','unit']
         self.log.info("Careful, make sure you shift headers to the right by 1 column in FDP sheet of ReCiPe111.xlsx")
 
 
         # Get all impact categories directly from excel file
+        print("reading for impacts")
         wb = xlrd.open_workbook('ReCiPe111.xlsx')
         imp =[]
         for i in range(len(hardcoded)):
@@ -2240,196 +2241,188 @@ class Ecospold2Matrix(object):
 
         self.conn.commit()
 
-    def integrate_flows(self, tables=['raw_ecoinvent', 'raw_recipe'])
+    def integrate_flows(self, tables=['raw_ecoinvent', 'raw_recipe']):
         self._integrate_flows_withCAS()
         self._integrate_flows_withoutCAS()
         self.conn.commit()
-    def _update_labels_from_names(self, tables=['raw_ecoinvent', 'raw_recipe']):
-        self.conn.executescript(
-                """
-        UPDATE OR ignore raw_ecoinvent
-        SET substid=(
-                SELECT n.substid
-                FROM names as n
-                WHERE (raw_ecoinvent.name=n.name or raw_ecoinvent.name2=n.name2)
-                AND raw_ecoinvent.tag IS s.tag
-                )
-        WHERE raw_ecoinvent.substid IS NULL
-        ;
+    def _update_labels_from_names(self, tables=('raw_ecoinvent', 'raw_recipe')):
 
-        UPDATE OR ignore raw_recipe
-        SET substid=(
-                SELECT n.substid
-                FROM names as n
-                WHERE (raw_recipe.name=n.name or raw_recipe.name2=n.name2)
-                AND raw_recipe.tag IS s.tag
-                )
-        WHERE raw_recipe.substid IS NULL
-        ; """);
+        for table in tables:
+            self.conn.executescript(
+                    """
+            UPDATE OR ignore {t}
+            SET substid=(
+                    SELECT n.substid
+                    FROM names as n
+                    WHERE ({t}.name=n.name or {t}.name2=n.name)
+                    AND {t}.tag IS n.tag
+                    )
+            WHERE {t}.substid IS NULL
+            AND {t}.cas IS NULL
+            ; """.format(t=scrub(table))
+            );
 
     def _insert_names_from_labels(self, tables=['raw_ecoinvent, raw_recipe']):
 
         self.conn.executescript("""
         INSERT OR IGNORE INTO names (name, tag, substid)
-        SELECT DISTINCT name, tag, substId FROM raw_ecoinvent
+        SELECT DISTINCT name, tag, substId FROM raw_ecoinvent where substid is
+        not null
         UNION
-        SELECT DISTINCT name2, tag, substId FROM raw_ecoinvent ;
+        SELECT DISTINCT name2, tag, substId FROM raw_ecoinvent where substid is
+        not null;
 
         INSERT OR IGNORE INTO names (name, tag, substid)
-        SELECT DISTINCT name, tag, substId FROM raw_recipe
+        SELECT DISTINCT name, tag, substId FROM raw_recipe where substid is not
+        null
         UNION
-        SELECT DISTINCT name2, tag, substId FROM raw_recipe ;
+        SELECT DISTINCT name2, tag, substId FROM raw_recipe where substid is
+        not null ;
         """);
 
-    def _integrate_flows_withCAS(self, tables=['raw_ecoinvent, raw_recipe']):
+    def _integrate_flows_withCAS(self, tables=('raw_ecoinvent', 'raw_recipe')):
         """ Populate substances, comp, subcomp, etc. from inventoried flows
         """
 
         # Populate comp and subcomp
         c = self.conn.cursor()
 
+        for table in tables:
+            c.executescript(
+            # 2.2 A new substance for each new cas+tag
+            # this will automatically ignore any redundant cas-tag combination
+            """
+            insert or ignore into substances(aName, cas, tag)
+            select distinct r.name, r.cas, r.tag FROM {t} AS r
+            WHERE r.cas is not null AND r.NAME IS NOT NULL
+            UNION
+            select distinct r.name2, r.cas, r.tag from {t} AS r
+            WHERE r.cas is not null AND r.name IS NULL
+            ;
+
+            -- 2.4: backfill labels with substid based on CAS-tag
+            UPDATE OR ignore {t}
+            SET substid=(
+                    SELECT s.substid
+                    FROM substances as s
+                    WHERE {t}.cas=s.cas
+                    AND {t}.tag IS s.tag
+                    )
+            WHERE {t}.substid IS NULL
+            ;
+            """.format(t=scrub(table)))
+
+        self._insert_names_from_labels()
 
 
+    def _integrate_flows_withoutCAS(self, tables=('raw_ecoinvent', 'raw_recipe')):
+        """ populate substances and names tables from flows without cas
+
+        """
+
+        c = self.conn.cursor()
+
+        # update labels substid from names
+        self._update_labels_from_names()
+
+        # new substances for each new name-tags in one dataset
+        # update labels with substid from substances
+        for table in tables:
+            c.executescript("""
+            -- 2.5: Create new substances for the remaining flows
+
+            INSERT OR ignore INTO substances(aName, cas, tag)
+            SELECT DISTINCT name, cas, tag
+            FROM {t} r WHERE r.substid IS NULL AND r.name IS NOT NULL
+            UNION
+            SELECT DISTINCT name2, cas, tag
+            FROM {t} r WHERE r.substid IS NULL AND r.name IS NULL
+            ;
+
+            -- 2.6: backfill labels with substid based on name-tag
+            UPDATE {t}
+            SET substid=(
+                    SELECT s.substid
+                    FROM substances s
+                    WHERE ({t}.name=s.aName OR {t}.name2=s.aName)
+                    AND {t}.tag IS s.tag
+                    )
+            WHERE substid IS NULL
+            ;
+            """.format(t=scrub(table))) # 2.6
+
+            # insert into names
+            self._insert_names_from_labels()
+
+            # update labels substid from names
+            self._update_labels_from_names()
+
+
+    def _finalize_labels(self, tables=('raw_recipe', 'raw_ecoinvent')):
+        c = self.conn.cursor()
         c.executescript(
         """
-        -- 2.2 A new substance for each new cas+tag
-                -- this will automatically ignore any redundant cas-tag combination
-        insert or ignore into substances(aName, cas, tag)
-        select distinct r.name, r.cas, r.tag FROM raw_ecoinvent AS r
-        WHERE r.cas is not null AND r.NAME IS NOT NULL
-        UNION
-        select distinct r.name2, r.cas, r.tag from raw_ecoinvent AS r
-        WHERE r.cas is not null AND r.name IS NULL
-        ;
-
-        -- 2.4: backfill labels with substid based on CAS-tag
-        UPDATE OR ignore raw_ecoinvent
-        SET substid=(
-                SELECT s.substid
-                FROM substances as s
-                WHERE raw_ecoinvent.cas=s.cas
-                AND raw_ecoinvent.tag IS s.tag
-                )
-        WHERE raw_ecoinvent.substid IS NULL
-        ;
+        select distinct r.name, n1.substid, r.name2, n2.substid
+        from raw_recipe r, names n1, names n2
+        where r.name=n1.name and r.name2=n2.name
+        and n1.substid <> n2.substid;
         """)
+        missed_synonyms = c.fetchall()
+        if len(missed_synonyms):
+            self.log.warning("Probably missed on some synonym pairs")
+            print(missed_synonyms)
 
-        c.executescript("""
-
-        INSERT OR ignore INTO substances (aName, cas, tag)
-        SELECT DISTINCT r.name, r.cas, r.tag FROM raw_recipe r
-        WHERE r.cas IS NOT NULL AND r.name IS NOT NULL
-        UNION
-        SELECT DISTINCT r.name2, r.cas, r.tag FROM raw_recipe r
-        WHERE r.cas IS NOT NULL AND r.name IS NULL
-        ;
-
-
-        -- 2.4: backfill labels with substid based on CAS-tag
-        UPDATE raw_recipe
-        SET substid=(
-            SELECT s.substid
-            FROM substances as s
-            WHERE raw_recipe.cas=s.cas
-            AND raw_recipe.tag IS s.tag
-            )
-        WHERE raw_recipe.substid IS NULL
-        ;
-
-        """)
-        self._insert_names_from_labels()
+        for table in tables:
+            c.execute(
+                "select * from {} where substid is null;".format(scrub(table)))
+            missed_flows = c.fetchall()
+            if len(missed_flows):
+                self.log.warning("There are missed flows in "+table)
+                print(missed_flows)
 
 
-    def _integrate_flows_withoutCAS(self, tables=['raw_ecoinvent, raw_recipe']):
-
-        # update labels substid from names
-        self._update_labels_from_names()
-
-        # new substances for new name-tags in one dataset
-        # update labels with substid from substances
-        c.executescript("""
-        -- 2.5: Create new substances for the remaining flows
-
-        INSERT OR ignore INTO substances(aName, cas, tag)
-        SELECT DISTINCT name, cas, tag
-        FROM raw_recipe r WHERE r.substid IS NULL AND r.name IS NOT NULL
-        UNION
-        SELECT DISTINCT name2, cas, tag
-        FROM raw_recipe r WHERE r.substid IS NULL AND r.name IS NULL
-        ;
-
-        -- 2.6: backfill labels with substid based on name-tag
-        UPDATE raw_recipe
-        SET substid=(
-                SELECT s.substid
-                FROM substances s
-                WHERE (raw_recipe.name=s.aName OR raw_recipe.name2=s.aName)
-                AND raw_recipe.tag IS s.tag
-                )
-        WHERE substid IS NULL
-        ;
-        """) # 2.6
-
-        # insert into names
-        self._insert_names_from_labels()
-
-        # update labels substid from names
-        self._update_labels_from_names()
-
-        # new substances for new name-tags in one dataset
-        # update labels with substid from substances
-        c.executescript("""
-        -- 2.5: Create new substances for the remaining flows
-
-        INSERT OR ignore INTO substances(aName, cas, tag)
-        SELECT DISTINCT name, cas, tag
-        FROM raw_ecoinvent r WHERE r.substid IS NULL AND r.name IS NOT NULL
-        UNION
-        SELECT DISTINCT name2, cas, tag
-        FROM raw_ecoinvent r WHERE r.substid IS NULL AND r.name IS NULL
-        ;
-
-        -- 2.6: backfill labels with substid based on name-tag
-        UPDATE raw_ecoinvent
-        SET substid=(
-                SELECT s.substid
-                FROM substances s
-                WHERE (raw_ecoinvent.name=s.aName OR raw_ecoinvent.name2=s.aName)
-                AND raw_ecoinvent.tag IS s.tag
-                )
-        WHERE substid IS NULL
-        ;
-        """) # 2.6
-
-        # insert into names
-        self._insert_names_from_labels()
-            
-    def _finalize_labels(self):
-        c.executescript("""
-        insert into nameHasScheme
-        select distinct n.nameId, s.schemeId from names n, schemes s
-        where n.name in (select distinct name from raw_ecoinvent)
+        self.conn.executescript("""
+        INSERT INTO nameHasScheme
+        SELECT DISTINCT n.nameId, s.schemeId from names n, schemes s
+        WHERE n.name in (SELECT DISTINCT name FROM raw_ecoinvent)
         and s.name='ecoinvent31';
 
+        insert into nameHasScheme
+        select distinct n.nameId, s.schemeId from names n, schemes s
+        where n.name in (select name from raw_recipe)
+        and s.name='recipe111';
+
+        insert into nameHasScheme
+        select distinct n.nameId, s.schemeId from names n, schemes s
+        where n.name in (select name2 from raw_recipe)
+        and s.name='simapro';
         """) # the very end
-#        # populate schemes, substances, names, etc. with 
-#        with open('integrate_flows_ecoinvent.sql', 'r') as f:
-#            c.executescript(f.read())
 #
-        c.executescript("""
-        INSERT INTO labels_ecoinvent(
-            ecorawId, substId, name, name2, tag, comp, subcomp, cas)
-        SELECT DISTINCT
-            ecorawId, substId, name, name2, tag, comp, subcomp, cas
-        FROM RAW_ECOINVENT;
+        for i in range(len(tables)):
+            table = scrub(tables[i])
+            print(table)
+            if 'coinvent' in table:
+                t_out = 'labels_ecoinvent'
+            else:
+                t_out = 'labels'
+            print(t_out)
 
-        DROP TABLE IF EXISTS raw_ecoinvent
-        """)
+            self.conn.executescript("""
+            INSERT INTO {to}(
+                ecorawId, substId, name, name2, tag, comp, subcomp, cas)
+            SELECT DISTINCT
+                ecorawId, substId, name, name2, tag, comp, subcomp, cas
+            FROM {t};
 
+            DROP TABLE IF EXISTS {t}
+            """.format(t=table, to=t_out))
 
 
         self.conn.commit()
 
+def scrub(table_name):
+    return ''.join( chr for chr in table_name
+                    if chr.isalnum() or chr == '_')
     def extract_old_stressor_labels(self):
 
         c = self.conn.cursor()
