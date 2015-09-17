@@ -23,7 +23,7 @@ if fullrun:
 parser=e2m.Ecospold2Matrix('/mnt/collection/current_Version_3.1_cutoff_ecoSpold02/', 
                            project_name,
                            prefer_pickles=True,
-                           verbose=False)
+                           verbose=True)
 self = parser
 c = self.conn.cursor()
 
@@ -45,9 +45,10 @@ if fullrun:
     except:
         pass
 
+print("integrate flows")
 parser.integrate_flows()
 
-#oldeco_path = '/home/bill/documents/arda/dev_arda_client/data/ecoinvent/2.2/Ecoinvent22_ReCiPe108_H.mat'
-#matdict = scipy.io.loadmat(oldeco_path)
-#a = np.array(matlab_tools.mine_nested_array(matdict['STR'], ''), dtype=object)
-#self.STR_old = pd.DataFrame(a, columns=matlab_tools.mine_nested_array(matdict['STR_header'], '').squeeze().tolist())
+oldeco_path = '/home/bill/documents/arda/dev_arda_client/data/ecoinvent/2.2/Ecoinvent22_ReCiPe108_H.mat'
+matdict = scipy.io.loadmat(oldeco_path)
+a = np.array(matlab_tools.mine_nested_array(matdict['STR'], ''), dtype=object)
+self.STR_old = pd.DataFrame(a, columns=matlab_tools.mine_nested_array(matdict['STR_header'], '').squeeze().tolist())

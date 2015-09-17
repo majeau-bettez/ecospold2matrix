@@ -80,7 +80,7 @@ class Ecospold2Matrix(object):
     def __init__(self, sys_dir, project_name, out_dir='.', lci_dir=None,
                  positive_waste=False, prefer_pickles=False, nan2null=False,
                  save_interm=True, PRO_order=['ISIC', 'activityName'],
-                 STR_order=['compartment', 'subcompartment', 'name'],
+                 STR_order=['comp', 'subcomp', 'name'],
                  verbose=True):
 
         """ Defining an ecospold2matrix object, with key parameters that
@@ -223,6 +223,50 @@ class Ecospold2Matrix(object):
                   ["air",    "low population density, long-term",
                                                         "low population density"]
                 ])
+        self._header_harmonizing_dict = {
+                'subcompartment':'subcomp',
+                'Subcompartment':'subcomp',
+                'Compartment':'comp',
+                'Compartments':'comp',
+                'Substance name (ReCiPe)':'recipeName',
+                'Substance name (SimaPro)':'simaproName',
+                'ecoinvent_name':'ecoinventName',
+                'recipe_name':'recipeName',
+                'simapro_name':'simaproName',
+                'CAS number': 'cas',
+                'casNumber': 'cas',
+                'Unit':'unit' }
+
+        self._cas_conflicts=pd.DataFrame(
+                columns=['cas', 'aName', 'bad_cas', 'comment'],
+                data=[
+                # deprecated CAS
+                ['93-65-2', 'mecoprop', '7085-19-0',
+                    'deprecated CAS'],
+                ['107534-96-3', 'tebuconazole', '80443-41-0',
+                    'deprecated cas'],
+                # wrong CAS
+                ['138261-41-3', None,'38261-41-3', 'cas not in scifinder'],
+                ['108-62-3', 'metaldehyde', '9002-91-9',
+                    'was cas of the polymer, not the molecule'],
+                ['107-15-3', None, '117-15-3',
+                    'invalid cas, typo for ethylenediamine'],
+                # ion vs substance
+                ['7440-23-5','sodium', None, 'same cas for ion and subst.'],
+                ['2764-72-9', 'diquat','231-36-7',
+                    'was cas of ion, not neutral molecule'],
+                # confusion
+                ['56-35-9', 'tributyltin compounds', '56573-85-4',
+                    'both cas numbers tributyltin based. picked recipe cas']
+                ])
+
+
+        self._name_conflicts=pd.DataFrame(
+            columns=['name', 'cas', 'bad_name'],
+            data=[
+                # formerly case sensitive name n,n-dimethyl, now n,n'-dimethyl
+                ['n,n''-dimethylthiourea', '534-13-4', None]
+                ]);
 
         # TODO: define scheme in self.obs2char
         # self.obs2char_subcomp.to_sql('obs2char_subcomps', self.conn,
@@ -861,9 +905,9 @@ class Ecospold2Matrix(object):
                 'id': o.get('id'),
                 'name': o.name.text,
                 'unit': o.unitName.text,
-                'casNumber': o.get('casNumber'),
-                'compartment': o.compartment.compartment.text,
-                'subcompartment': o.compartment.subcompartment.text
+                'cas': o.get('casNumber'),
+                'comp': o.compartment.compartment.text,
+                'subcomp': o.compartment.subcompartment.text
             }
 
         # Extract data from file
@@ -876,9 +920,9 @@ class Ecospold2Matrix(object):
         STR.index = STR['id']
         STR = STR.reindex_axis(['name',
                                 'unit',
-                                'casNumber',
-                                'compartment',
-                                'subcompartment'], axis=1)
+                                'cas',
+                                'comp',
+                                'subcomp'], axis=1)
         self.STR = STR.sort(columns=self.STR_order)
 
         # Log event
@@ -2035,6 +2079,61 @@ class Ecospold2Matrix(object):
         self.log.warning("obs2char_subcomps constraints temporarily relaxed because not full recipe parsed")
 
 
+    def clean_label(self, table):
+
+        c = self.conn.cursor()
+        table= scrub(table)
+
+
+        # trim, and harmonize comp and subcomp names
+        c.executescript( """
+            UPDATE {t}
+            SET comp=trim((lower(comp))),
+            subcomp=trim((lower(subcomp))),
+            name=trim((lower(name))),
+            name2=trim((lower(name2))),
+            cas=trim(cas),
+            unit=trim(unit);
+
+            update {t} set subcomp='unspecified'
+            where subcomp is null or subcomp='(unspecified)';
+
+            update {t} set subcomp='low population density'
+            where subcomp='low. pop.';
+
+            update {t} set subcomp='high population density'
+            where subcomp='high. pop.';
+
+            update {t} set comp='resource' where comp='raw';
+
+            """.format(t=table))
+
+        # nullify some columns if arguments of length zero
+        for col in ('cas', 'name', 'name2'):
+            c.execute("""
+                update {t} set {c}=null
+                where length({c})=0;""".format(t=table, c=scrub(col)))
+
+        # cas number clean up
+        for i, row in self._cas_conflicts.iterrows():
+            if row.aName is None:
+                c.execute(""" update {t} set cas=?
+                              where cas=?""".format(t=table),
+                          (row.cas, row.bad_cas))
+            else:
+                c.execute(""" update {t} set cas=?
+                              where name=?
+                              and cas=?""".format(t=table),
+                          (row.cas, row.aName, row.bad_cas))
+
+            print("row id: ",i)
+            print("modification: ", c.rowcount)
+            if c.rowcount:
+                self.log.info("Substituted {} by {} because {}".format(
+                            row.bad_cas, row.cas, row.comment))
+            
+        IPython.embed()
+
 
     def process_ecoinvent_elementary_flows(self):
         """Input inventoried stressor flow table (STR) to database and clean up
@@ -2044,7 +2143,7 @@ class Ecospold2Matrix(object):
         """
 
         # clean up: remove leading zeros in front of CAS numbers
-        self.STR.casNumber = self.STR.casNumber.str.replace('^[0]*','')
+        self.STR.cas = self.STR.cas.str.replace('^[0]*','')
 
         # export to tmp SQL table
         c = self.conn.cursor()
@@ -2054,14 +2153,15 @@ class Ecospold2Matrix(object):
                         if_exists='replace')
         c.execute( """
         INSERT INTO raw_ecoinvent(id, name, comp, subcomp, unit, cas)
-        SELECT DISTINCT id, name, compartment, subcompartment, unit, casNumber
+        SELECT DISTINCT id, name, comp, subcomp, unit, cas
         FROM tmp;
         """)
 
-        # clean up and commit
-        with open('clean_ecoinvent.sql', 'r') as f:
-                c.executescript(f.read())
-        self.conn.commit()
+        self.clean_label('raw_ecoinvent')
+        ## clean up and commit
+        #with open('clean_ecoinvent.sql', 'r') as f:
+        #        c.executescript(f.read())
+        #self.conn.commit()
 
     def read_characterisation(self):
         """Input characterisation factor table (STR) to database and clean up
@@ -2090,18 +2190,18 @@ class Ecospold2Matrix(object):
         hardcoded = [
                 {'name':'FEP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
                 {'name':'MEP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'GWP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'} #,
-             #   {'name':'ODP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'AP'  , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'POFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'PMFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'IRP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'LOP' , 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'},
-             #   {'name':'LTP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'WDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'MDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'FDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-             #   {'name':'TP'  , 'rows':5, 'range':'B:S', 'midpoint':'H4:S6'}
+                {'name':'GWP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'ODP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'AP'  , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'POFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'PMFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'IRP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'LOP' , 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'},
+                {'name':'LTP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'WDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'MDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'FDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
+                {'name':'TP'  , 'rows':5, 'range':'B:S', 'midpoint':'H4:S6'}
                  ]
         headers = ['comp','subcomp','recipeName','simaproName','cas','unit']
         self.log.info("Careful, make sure you shift headers to the right by 1 column in FDP sheet of ReCiPe111.xlsx")
@@ -2133,14 +2233,7 @@ class Ecospold2Matrix(object):
 
 
             # clean up a bit
-            foo.rename(columns={'subcompartment':'subcomp',
-                                'Subcompartment':'subcomp',
-                                'Compartment':'comp',
-                                'Compartments':'comp',
-                                'Substance name (ReCiPe)':'recipeName',
-                                'Substance name (SimaPro)':'simaproName',
-                                'CAS number': 'cas',
-                                'Unit':'unit' }, inplace=True)
+            foo.rename(columns=self._header_harmonizing_dict, inplace=True)
 
             foo.cas = foo.cas.str.replace('^[0]*','')
             foo.ix[:, headers] = foo.ix[:, headers].fillna('')
@@ -2264,7 +2357,7 @@ class Ecospold2Matrix(object):
             ; """.format(t=scrub(table))
             );
 
-    def _insert_names_from_labels(self, tables=['raw_ecoinvent, raw_recipe']):
+    def _insert_names_from_labels(self, tables=('raw_ecoinvent, raw_recipe')):
 
         self.conn.executescript("""
         INSERT OR IGNORE INTO names (name, tag, substid)
@@ -2422,133 +2515,130 @@ class Ecospold2Matrix(object):
 
         self.conn.commit()
 
-def scrub(table_name):
-    return ''.join( chr for chr in table_name
-                    if chr.isalnum() or chr == '_')
-    def extract_old_stressor_labels(self):
+    def integrate_old_labels(self):
+        """
+
+        requires that self.STR_old be defined, with two name columns called
+        name and name2
+
+        """
+
+        # clean up CAS numbers
+        self.STR_old.rename(columns=self._header_harmonizing_dict, inplace=True)
+        self.STR_old.cas = self.STR_old.cas.str.replace('^[0]*','')
 
         c = self.conn.cursor()
         self.STR_old.to_sql('tmp', self.conn, if_exists='replace', index=False)
 
         c.executescript("""
-
-            UPDATE tmp
-            SET cas = NULL
-            WHERE length(cas)<>11 AND cas IS NOT NULL;
-
-            DROP TABLE IF EXISTS old_labels;
-
-            CREATE TABLE old_labels(
-            oldid       INTEGER NOT NULL  primary key,
-            ardaid      integer NOT NULL UNIQUE,
-            ecoinvent_name  text,
-            simapro_name    text,
-            recipe_name text,
-            cas         text    CHECK (length(cas)=11 OR cas IS NULL),
-            dsid        integer,
-            comp        text,
-            subcomp     text,
-            unit        text,
-            substid     TEXT,
-            covered_before  boolean,
-            covered_new boolean
-            );
-
             INSERT INTO old_labels(ardaid,
-                                   ecoinvent_name,
-                                   simapro_name,
-                                  recipe_name,
+                                   name,
+                                   name2,
                                    cas,
                                    comp,
                                    subcomp,
                                    unit)
-            SELECT DISTINCT ardaid,
-                            ecoinvent_name,
-                            simapro_name,
-                            recipe_name,
-                            cas,
-                            comp,
-                            subcomp,
-                            unit
+            SELECT DISTINCT ardaid, name, name2, cas, comp, subcomp, unit
             FROM tmp;
-
-
             """)
 
-        self.conn.commit()
-
-    def integrate_flows_recipe(self):
-        """ Populate substances, comp, subcomp, etc. from characterized flows
-        """
-
-        c = self.conn.cursor()
-        # 2. integrate substances
-
-        fd = open('input_substances.sql', 'r')
-        sqlFile = fd.read()
-        fd.close()
-        c.executescript(sqlFile)
-        self.conn.commit()
-
-    def step2_characterisztion_factors(self):
-        raw_recipe = pd.read_sql_query("SELECT * FROM raw_recipe", self.conn)
-        raw_recipe.drop(['rawId', 'recipeName', 'simaproName','cas', 'tag'],
-                        1, inplace=True)
-        raw_recipe.set_index(['SubstId','comp','subcomp','unit'], inplace=True)
-        sparse_factors = raw_recipe.stack().reset_index(-1)
-        sparse_factors.columns=['impactId','factorValue']
-        sparse_factors.reset_index(inplace=True)
-        sparse_factors.to_sql('tmp', self.conn, index=False)
-
-        c = self.conn.cursor()
-        c.execute('''
-
-        INSERT INTO sparse_factors(
-               substId, comp, subcomp, unit, factorValue, impactId)
-        SELECT DISTINCT substId, comp, subcomp, unit, factorValue, impactId
-        FROM tmp;
-        '''
-        )
-        c.execute("DROP TABLE tmp")
-
         c.execute("""
+            update old_labels
+            set substid=(select distinct s.substid
+                         from substances as s
+                         where old_labels.cas=s.cas and
+                         old_labels.tag=s.tag)
+            where old_labels.substId is null;
+            """)
 
-        INSERT INTO bad
-        SELECT * FROM sparse_factors AS s1
-        WHERE EXISTS (
-            SELECT 1 FROM sparse_factors AS s2
-            WHERE s1.SubstId = s2.SubstId
-            AND s1.comp=s2.comp
-            AND (s1.subcomp=s2.subcomp OR 
-                (s1.subcomp IS NULL AND s2.subcomp IS NULL))
-            AND s1.unit=s2.unit
-            AND s1.impactId=s2.impactId
-            AND s1.sparseId <> s2.sparseId
-            AND s1.factorValue <> s2.factorValue);
-        """)
-
-        c.execute("select * from bad")
-        bad = c.fetchall()
-        if len(bad) > 0:
-                self.log.warning(
-                    "Two different characterisation factors for the same thing.")
-
-        method = ('ReCiPe111',)
-
-        c.execute("""
-
-        INSERT INTO factors (
-                substId, comp, subcomp, unit, impactId, method, factorValue)
-        SELECT DISTINCT sp.substId,
-                        sp.comp,
-                        sp.subcomp,
-                        sp.unit,
-                        sp.impactId,
-                        ?,
-                        sp.factorValue
-        FROM sparse_factors AS sp
-        WHERE sp.substid NOT IN (SELECT b.substid FROM bad b);
-        """, method)
+        for name in ('name','name2'):
+            c.execute("""
+                update old_labels
+                set substid=(select distinct n.substid
+                             from names as n
+                             where old_labels.{n}=n.name and
+                             old_labels.tag=n.tag)
+                where substId is null
+            ;""".format(n=scrub(name)))
 
         self.conn.commit()
+
+
+def scrub(table_name):
+    return ''.join( chr for chr in table_name
+                    if chr.isalnum() or chr == '_')
+#    def integrate_flows_recipe(self):
+#        """ Populate substances, comp, subcomp, etc. from characterized flows
+#        """
+#
+#        c = self.conn.cursor()
+#        # 2. integrate substances
+#
+#        fd = open('input_substances.sql', 'r')
+#        sqlFile = fd.read()
+#        fd.close()
+#        c.executescript(sqlFile)
+#        self.conn.commit()
+
+#    def step2_characterisztion_factors(self):
+#        raw_recipe = pd.read_sql_query("SELECT * FROM raw_recipe", self.conn)
+#        raw_recipe.drop(['rawId', 'recipeName', 'simaproName','cas', 'tag'],
+#                        1, inplace=True)
+#        raw_recipe.set_index(['SubstId','comp','subcomp','unit'], inplace=True)
+#        sparse_factors = raw_recipe.stack().reset_index(-1)
+#        sparse_factors.columns=['impactId','factorValue']
+#        sparse_factors.reset_index(inplace=True)
+#        sparse_factors.to_sql('tmp', self.conn, index=False)
+#
+#        c = self.conn.cursor()
+#        c.execute('''
+#
+#        INSERT INTO sparse_factors(
+#               substId, comp, subcomp, unit, factorValue, impactId)
+#        SELECT DISTINCT substId, comp, subcomp, unit, factorValue, impactId
+#        FROM tmp;
+#        '''
+#        )
+#        c.execute("DROP TABLE tmp")
+#
+#        c.execute("""
+#
+#        INSERT INTO bad
+#        SELECT * FROM sparse_factors AS s1
+#        WHERE EXISTS (
+#            SELECT 1 FROM sparse_factors AS s2
+#            WHERE s1.SubstId = s2.SubstId
+#            AND s1.comp=s2.comp
+#            AND (s1.subcomp=s2.subcomp OR 
+#                (s1.subcomp IS NULL AND s2.subcomp IS NULL))
+#            AND s1.unit=s2.unit
+#            AND s1.impactId=s2.impactId
+#            AND s1.sparseId <> s2.sparseId
+#            AND s1.factorValue <> s2.factorValue);
+#        """)
+#
+#        c.execute("select * from bad")
+#        bad = c.fetchall()
+#        if len(bad) > 0:
+#                self.log.warning(
+#                    "Two different characterisation factors for the same thing.")
+#
+#        method = ('ReCiPe111',)
+#
+#        c.execute("""
+#
+#        INSERT INTO factors (
+#                substId, comp, subcomp, unit, impactId, method, factorValue)
+#        SELECT DISTINCT sp.substId,
+#                        sp.comp,
+#                        sp.subcomp,
+#                        sp.unit,
+#                        sp.impactId,
+#                        ?,
+#                        sp.factorValue
+#        FROM sparse_factors AS sp
+#        WHERE sp.substid NOT IN (SELECT b.substid FROM bad b);
+#        """, method)
+#
+#        self.conn.commit()
 

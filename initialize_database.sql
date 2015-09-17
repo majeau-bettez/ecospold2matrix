@@ -8,7 +8,7 @@ CREATE TABLE raw_recipe(
 id           INTEGER NOT NULL PRIMARY KEY,
 comp         TEXT,
 subcomp      TEXT,
-name         TEXT    NOT NULL,
+name         TEXT,
 name2        TEXT,
 cas          TEXT    CHECK (cas NOT LIKE '0%'),
 tag          TEXT    NOT NULL DEFAULT '',
@@ -16,19 +16,22 @@ unit         TEXT,
 impactId     TEXT,
 factorValue  REAL,
 substId      INTEGER,
-UNIQUE(comp, subcomp, name, name2, tag, cas, unit, impactId));
+UNIQUE(comp, subcomp, name, name2, tag, cas, unit, impactId),
+CONSTRAINT hasAName CHECK(name IS NOT NULL OR name2 IS NOT NULL)
+);
 
 DROP TABLE IF EXISTS raw_ecoinvent;
 CREATE TABLE raw_ecoinvent(
 id    SERIAL  NOT NULL PRIMARY KEY,
 substId     INTEGER,
-name        TEXT    NOT NULL,
+name        TEXT    ,
 name2       TEXT    ,
 tag         TEXT    DEFAULT NULL DEFAULT '',
 comp        TEXT    NOT NULL,
 subcomp     TEXT    ,
 unit        TEXT    ,
-cas         text    CHECK (cas NOT LIKE '0%')
+cas         text    CHECK (cas NOT LIKE '0%'),
+CONSTRAINT hasAName CHECK(NAME IS NOT NULL OR name2 IS NOT NULL)
 );
 
 
@@ -98,18 +101,17 @@ CONSTRAINT uniqueFlow UNIQUE(elflow_id, substId, comp, subcomp)
 
 drop table if exists old_labels;
 create table old_labels(
-oldid       INTEGER NOT NULL  primary key,
-fullname    text,
-ardaid      integer not null,
-name        text not null,
-dsid        integer not null,
-infrastructure  text,
-location    text,
-comp        text,
-subcomp     text,
-unit        text ,
-covered_before  boolean not null,
-covered_new boolean default false
+oldid       INTEGER NOT NULL  PRIMARY KEY,
+ardaid      INTEGER NOT NULL UNIQUE,
+name        TEXT,
+name2       TEXT,
+tag	    TEXT NOT NULL DEFAULT '',
+cas         text    CHECK (cas NOT LIKE '0%'),
+comp        TEXT NOT NULL,
+subcomp     TEXT,
+unit        TEXT NOT NULL,
+substId     INTEGER,
+CONSTRAINT hasAName CHECK(name IS NOT NULL OR name2 IS NOT NULL)
 );
 
 DROP TABLE IF EXISTS impacts;
@@ -139,7 +141,7 @@ DROP TABLE IF EXISTS labels_ecoinvent;
 CREATE TABLE labels_ecoinvent(
 id    SERIAL  NOT NULL PRIMARY KEY,
 substId     INTEGER REFERENCES substances,
-name        TEXT    NOT NULL,
+name        TEXT    ,
 tag         TEXT    DEFAULT NULL,
 comp        TEXT    NOT NULL references comp(compName),
 subcomp     TEXT    references subcomp(subcompName),
@@ -148,6 +150,7 @@ unit        TEXT    ,
 cas         text    CHECK (cas NOT LIKE '0%'),
 dsid        integer,
 name2       TEXT,
+CONSTRAINT hasAName CHECK(NAME IS NOT NULL OR name2 IS NOT NULL),
 FOREIGN KEY (name, tag) REFERENCES names(name, tag),
 FOREIGN KEY (name2, tag) REFERENCES names(name, tag)
 -- Cannot put uniqueness constraints, data in a mess
@@ -161,11 +164,12 @@ id	    INTEGER NOT NULL PRIMARY KEY,
 substId     INTEGER REFERENCES substances,
 comp        TEXT    NOT NULL references comp(compName),
 subcomp     TEXT    references subcomp(subcompName),
-name        TEXT    NOT NULL,
-name2       TEXT,
+name        TEXT    ,
+name2       TEXT    ,
 cas         text    CHECK (cas NOT LIKE '0%'),
-tag         TEXT,
-unit        TEXT,
+tag         TEXT    ,
+unit        TEXT    ,
+CONSTRAINT hasAName CHECK(NAME IS NOT NULL OR name2 IS NOT NULL),
 FOREIGN KEY (name, tag) REFERENCES names(name, tag),
 FOREIGN KEY (name2, tag) REFERENCES names(name, tag)
 -- Cannot put uniqueness constraints, data in a mess
@@ -217,6 +221,20 @@ factorId    int not null,
 factorValue double precision    not null,
 scheme      TEXT,
 UNIQUE(obsflowId, impactId, scheme)
+);
+
+DROP TABLE IF EXISTS old_labels;
+CREATE TABLE old_labels(
+oldid       	INTEGER NOT NULL  primary key,
+name	    	TEXT,
+name2	    	TEXT,
+tag		TEXT,
+cas         	TEXT    CHECK (cas NOT LIKE '0%'),
+comp        	TEXT,
+subcomp     	TEXT,
+unit        	TEXT,
+ardaid      	integer NOT NULL UNIQUE,
+substid     	TEXT
 );
 
 --====================================
