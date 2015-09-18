@@ -38,6 +38,7 @@ if fullrun:
     print("reading characterised flows")
     parser.read_characterisation()
     parser.populate_complementary_tables()
+    parser.integrate_flows()
     os.system('cp ' + project_name + '_characterisation.db start_characterisation.db')
     print('DONE!!!')
     try:
@@ -46,9 +47,10 @@ if fullrun:
         pass
 
 print("integrate flows")
-parser.integrate_flows()
 
 oldeco_path = '/home/bill/documents/arda/dev_arda_client/data/ecoinvent/2.2/Ecoinvent22_ReCiPe108_H.mat'
 matdict = scipy.io.loadmat(oldeco_path)
 a = np.array(matlab_tools.mine_nested_array(matdict['STR'], ''), dtype=object)
 self.STR_old = pd.DataFrame(a, columns=matlab_tools.mine_nested_array(matdict['STR_header'], '').squeeze().tolist())
+self.STR_old.rename(columns={'recipeName': 'name', 'simaproName': 'name2'},
+                    inplace = True)

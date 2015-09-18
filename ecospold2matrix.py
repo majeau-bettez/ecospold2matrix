@@ -54,6 +54,7 @@ import hashlib
 import sqlite3
 import xlrd
 import xlwt
+import copy
 import IPython
 # pylint: disable-msg=C0103
 
@@ -245,19 +246,44 @@ class Ecospold2Matrix(object):
                     'deprecated CAS'],
                 ['107534-96-3', 'tebuconazole', '80443-41-0',
                     'deprecated cas'],
+                ['302-04-5', None, '71048-69-6',
+                    'deprecated cas for thiocyanate'],
+                #
                 # wrong CAS
-                ['138261-41-3', None,'38261-41-3', 'cas not in scifinder'],
+                #
+                ['138261-41-3', None,'38261-41-3', 'invalid cas for imidacloprid'],
                 ['108-62-3', 'metaldehyde', '9002-91-9',
                     'was cas of the polymer, not the molecule'],
                 ['107-15-3', None, '117-15-3',
                     'invalid cas, typo for ethylenediamine'],
+                ['74-89-5', 'methyl amine', '75-89-5', 'invalid CAS (typo?)'],
+                #
                 # ion vs substance
+                #
                 ['7440-23-5','sodium', None, 'same cas for ion and subst.'],
                 ['2764-72-9', 'diquat','231-36-7',
                     'was cas of ion, not neutral molecule'],
+                #
                 # confusion
+                #
                 ['56-35-9', 'tributyltin compounds', '56573-85-4',
-                    'both cas numbers tributyltin based. picked recipe cas']
+                    'both cas numbers tributyltin based. picked recipe cas'],
+                # IPCC GHG notation
+                # http://www.deq.state.ne.us/press.nsf/3eb24ee59e8286048625663a006354f0/1721875d44a691d9862578bf005ba3ce/$FILE/GHG%20table_Handout.pdf
+                ['20193–67–3',
+                    'ether, 1,2,2-trifluoroethyl trifluoromethyl-, hfe-236fa',
+                    None,
+                    'IPCC char fixes'],
+                ['57041–67–5',
+                    'ether, 1,2,2-trifluoroethyl trifluoromethl-, hfe-236ea2',
+                    None,
+                    'IPCC char fixes'],
+                ['160620-20-2', '%356pcc3%', None, 'IPCC chem fixes'],
+                ['35042-99-0',  '%356pcf3%', None, 'IPCC chem fixes'],
+                ['382-34-3',    '%356mec3%', None, 'IPCC chem fixes'],
+                ['22410-44-2',  '%245cb2%',  None, 'IPCC chem fixes'],
+                ['84011-15-4',  '%245fa1%',  None, 'IPCC chem fixes'],
+                ['28523–86–6',  '%347mcc3%', None, 'IPCC chem fixes']
                 ])
 
 
@@ -266,7 +292,7 @@ class Ecospold2Matrix(object):
             data=[
                 # formerly case sensitive name n,n-dimethyl, now n,n'-dimethyl
                 ['n,n''-dimethylthiourea', '534-13-4', None]
-                ]);
+                ])
 
         # TODO: define scheme in self.obs2char
         # self.obs2char_subcomp.to_sql('obs2char_subcomps', self.conn,
@@ -2080,12 +2106,14 @@ class Ecospold2Matrix(object):
 
 
     def clean_label(self, table):
+        """ Harmonize notation and correct for mistakes in label sqlite table
+        """
 
         c = self.conn.cursor()
         table= scrub(table)
 
 
-        # trim, and harmonize comp and subcomp names
+        # TRIM, AND HARMONIZE COMP, SUBCOMP, AND OTHER  NAMES
         c.executescript( """
             UPDATE {t}
             SET comp=trim((lower(comp))),
@@ -2105,34 +2133,101 @@ class Ecospold2Matrix(object):
             where subcomp='high. pop.';
 
             update {t} set comp='resource' where comp='raw';
+            update {t} set unit='m3' where unit='Nm3';
 
             """.format(t=table))
 
-        # nullify some columns if arguments of length zero
+        # NULLIFY SOME COLUMNS IF ARGUMENTS OF LENGTH ZERO
         for col in ('cas', 'name', 'name2'):
             c.execute("""
                 update {t} set {c}=null
                 where length({c})=0;""".format(t=table, c=scrub(col)))
 
-        # cas number clean up
-        for i, row in self._cas_conflicts.iterrows():
-            if row.aName is None:
-                c.execute(""" update {t} set cas=?
-                              where cas=?""".format(t=table),
-                          (row.cas, row.bad_cas))
-            else:
-                c.execute(""" update {t} set cas=?
-                              where name=?
-                              and cas=?""".format(t=table),
-                          (row.cas, row.aName, row.bad_cas))
-
-            print("row id: ",i)
-            print("modification: ", c.rowcount)
-            if c.rowcount:
-                self.log.info("Substituted {} by {} because {}".format(
-                            row.bad_cas, row.cas, row.comment))
+        # DEFINE  TAGS BASED ON NAMES
+        for tag in ('fossil', 'total', 'organic bound', 'biogenic',
+                'non-fossil', 'as N', 'land transformation'):
             
-        IPython.embed()
+            c.execute(""" update {t} set tag='{ta}'
+                          where (name like '%, {ta}' or name2 like '%, {ta}');
+                      """.format(t=table, ta=tag))
+
+        # Define more tags
+        c.executescript("""
+                        update {t} set tag='mix'
+                        where name like '% compounds'
+                        or name2 like '% compounds';
+
+                        update {t} set tag='alpha radiation' 
+                        where (name like '%alpha%' or name2 like '%alpha%')
+                        and unit='kbq';
+
+                        update {t} set tag='in ore'
+                        where subcomp like '%in ground';
+                        """.format(t=table))
+
+        # Clean up names
+        c.executescript("""
+                        update {t}
+                        set name=replace(name,', in ground',''),
+                            name2=replace(name2, ', in ground','')
+                        where (name like '% in ground'
+                               or name2 like '% in ground');
+
+                        update {t}
+                        set name=replace(name,', unspecified',''),
+                            name=replace(name,', unspecified','')
+                        where ( name like '%, unspecified'
+                                OR  name2 like '%, unspecified');
+
+                        update {t}
+                        set name=replace(name,'/m3',''),
+                            name2=replace(name2,'/m3','')
+                        where name like '%/m3';
+
+                        """.format(t=table))
+
+
+        # REPLACE FAULTY CAS NUMBERS CLEAN UP
+        for i, row in self._cas_conflicts.iterrows():
+            #if table == 'raw_recipe':
+            #    IPython.embed()
+            org_cas = copy.deepcopy(row.bad_cas)
+            aName = copy.deepcopy(row.aName)
+            if row.aName is not None and row.bad_cas is not None:
+                c.execute(""" update {t} set cas=?
+                              where (name like ? or name2 like ?)
+                              and cas=?""".format(t=table),
+                          (row.cas, row.aName, row.aName, row.bad_cas))
+
+            elif row.aName is None:
+                c.execute("""select distinct name from {t}
+                             where cas=?;""".format(t=table), (row.bad_cas,))
+                try:
+                    aName = c.fetchone()[0]
+                except TypeError:
+                    aName = '[]'
+
+                c.execute(""" update {t} set cas=?
+                              where cas=?
+                          """.format(t=table), (row.cas, row.bad_cas))
+
+            else: # aName, but no bad_cas specified
+                c.execute(""" select distinct cas from {t}
+                              where (name like ? or name2 like ?)
+                          """.format(t=table),(row.aName, row.aName))
+                try:
+                    org_cas = c.fetchone()[0]
+                except TypeError:
+                    org_cas = '[]'
+
+                c.execute(""" update {t} set cas=?
+                              where (name like ? or name2 like ?)
+                              and cas <> ?""".format(t=table),
+                              (row.cas, row.aName, row.aName, row.cas))
+
+            if c.rowcount:
+                msg="Substituted CAS {} by {} for {} because {}"
+                self.log.info(msg.format( org_cas, row.cas, aName, row.comment))
 
 
     def process_ecoinvent_elementary_flows(self):
@@ -2158,10 +2253,7 @@ class Ecospold2Matrix(object):
         """)
 
         self.clean_label('raw_ecoinvent')
-        ## clean up and commit
-        #with open('clean_ecoinvent.sql', 'r') as f:
-        #        c.executescript(f.read())
-        #self.conn.commit()
+        self.conn.commit()
 
     def read_characterisation(self):
         """Input characterisation factor table (STR) to database and clean up
@@ -2271,11 +2363,7 @@ class Ecospold2Matrix(object):
         """)
 
         # major cleanup
-        fd = open('clean_recipe.sql', 'r')
-        sqlFile = fd.read()
-        fd.close()
-        c.executescript(sqlFile)
-
+        self.clean_label('raw_recipe')
         self.conn.commit()
 
 
@@ -2550,6 +2638,7 @@ class Ecospold2Matrix(object):
                          old_labels.tag=s.tag)
             where old_labels.substId is null;
             """)
+        self.clean_label('old_labels')
 
         for name in ('name','name2'):
             c.execute("""
