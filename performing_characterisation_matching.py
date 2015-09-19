@@ -41,16 +41,16 @@ if fullrun:
     parser.integrate_flows()
     os.system('cp ' + project_name + '_characterisation.db start_characterisation.db')
     print('DONE!!!')
-    try:
-        IPython.embed()
-    except:
-        pass
 
-print("integrate flows")
 
 oldeco_path = '/home/bill/documents/arda/dev_arda_client/data/ecoinvent/2.2/Ecoinvent22_ReCiPe108_H.mat'
 matdict = scipy.io.loadmat(oldeco_path)
 a = np.array(matlab_tools.mine_nested_array(matdict['STR'], ''), dtype=object)
 self.STR_old = pd.DataFrame(a, columns=matlab_tools.mine_nested_array(matdict['STR_header'], '').squeeze().tolist())
-self.STR_old.rename(columns={'recipeName': 'name', 'simaproName': 'name2'},
-                    inplace = True)
+self.STR_old.rename(columns={'ecoinvent_name' : 'name3',
+                             'recipe_name': 'name',
+                             'simapro_name': 'name2'}, inplace = True)
+print(self.STR_old.columns)
+parser.integrate_old_labels()
+print("Done with performing characterisation")
+IPython

@@ -99,19 +99,21 @@ ardaId      integer     UNIQUE,
 CONSTRAINT uniqueFlow UNIQUE(elflow_id, substId, comp, subcomp)
 );
 
+
 drop table if exists old_labels;
 create table old_labels(
 oldid       INTEGER NOT NULL  PRIMARY KEY,
 ardaid      INTEGER NOT NULL UNIQUE,
 name        TEXT,
 name2       TEXT,
+name3       TEXT,
 tag	    TEXT NOT NULL DEFAULT '',
 cas         text    CHECK (cas NOT LIKE '0%'),
 comp        TEXT NOT NULL,
 subcomp     TEXT,
 unit        TEXT NOT NULL,
 substId     INTEGER,
-CONSTRAINT hasAName CHECK(name IS NOT NULL OR name2 IS NOT NULL)
+CONSTRAINT hasAName CHECK((name IS NOT NULL) OR (name2 IS NOT NULL) OR (name3 IS NOT NULL) )
 );
 
 DROP TABLE IF EXISTS impacts;
@@ -221,20 +223,6 @@ factorId    int not null,
 factorValue double precision    not null,
 scheme      TEXT,
 UNIQUE(obsflowId, impactId, scheme)
-);
-
-DROP TABLE IF EXISTS old_labels;
-CREATE TABLE old_labels(
-oldid       	INTEGER NOT NULL  primary key,
-name	    	TEXT,
-name2	    	TEXT,
-tag		TEXT,
-cas         	TEXT    CHECK (cas NOT LIKE '0%'),
-comp        	TEXT,
-subcomp     	TEXT,
-unit        	TEXT,
-ardaid      	integer NOT NULL UNIQUE,
-substid     	TEXT
 );
 
 --====================================

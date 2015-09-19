@@ -2105,7 +2105,7 @@ class Ecospold2Matrix(object):
         self.log.warning("obs2char_subcomps constraints temporarily relaxed because not full recipe parsed")
 
 
-    def clean_label(self, table):
+    def clean_label(self, table, name_cols = ('name', 'name2')):
         """ Harmonize notation and correct for mistakes in label sqlite table
         """
 
@@ -2118,8 +2118,8 @@ class Ecospold2Matrix(object):
             UPDATE {t}
             SET comp=trim((lower(comp))),
             subcomp=trim((lower(subcomp))),
-            name=trim((lower(name))),
-            name2=trim((lower(name2))),
+            name=trim(name),
+            name2=trim(name2),
             cas=trim(cas),
             unit=trim(unit);
 
@@ -2138,18 +2138,24 @@ class Ecospold2Matrix(object):
             """.format(t=table))
 
         # NULLIFY SOME COLUMNS IF ARGUMENTS OF LENGTH ZERO
-        for col in ('cas', 'name', 'name2'):
+        for col in ('cas',) + name_cols:
+            col = scrub(col)
             c.execute("""
                 update {t} set {c}=null
-                where length({c})=0;""".format(t=table, c=scrub(col)))
+                where length({c})=0;""".format(t=table, c=col))
+
+            c.execute(""" update {t}
+                          set {c} = replace({c}, ', biogenic', ', non-fossil')
+                          where {c} like '%, biogenic%'
+                          """.format(t=table, c=col))
 
         # DEFINE  TAGS BASED ON NAMES
-        for tag in ('fossil', 'total', 'organic bound', 'biogenic',
+        for tag in ('fossil', 'total', 'organic bound',
                 'non-fossil', 'as N', 'land transformation'):
-            
-            c.execute(""" update {t} set tag='{ta}'
-                          where (name like '%, {ta}' or name2 like '%, {ta}');
-                      """.format(t=table, ta=tag))
+            for name in name_cols: 
+                c.execute(""" update {t} set tag='{ta}'
+                              where ({n} like '%, {ta}');
+                          """.format(t=table, ta=tag, n=scrub(name)))
 
         # Define more tags
         c.executescript("""
@@ -2190,7 +2196,6 @@ class Ecospold2Matrix(object):
         # REPLACE FAULTY CAS NUMBERS CLEAN UP
         for i, row in self._cas_conflicts.iterrows():
             #if table == 'raw_recipe':
-            #    IPython.embed()
             org_cas = copy.deepcopy(row.bad_cas)
             aName = copy.deepcopy(row.aName)
             if row.aName is not None and row.bad_cas is not None:
@@ -2597,7 +2602,7 @@ class Ecospold2Matrix(object):
                 id, substId, name, name2, tag, comp, subcomp, cas, unit
             FROM {t};
 
-            DROP TABLE IF EXISTS {t}
+            -- DROP TABLE IF EXISTS {t}
             """.format(t=table, to=t_out))
 
 
@@ -2605,42 +2610,67 @@ class Ecospold2Matrix(object):
 
     def integrate_old_labels(self):
         """
+        Read in old labels in order to reuse the same Ids for the same flows,
+        for backward compatibility of any inventory using the new dataset
 
-        requires that self.STR_old be defined, with two name columns called
-        name and name2
+        REQUIREMENTS
+        ------------
 
+        self.STR_old must be defined with:
+            * with THREE name columns called name, name2, name3
+            * cas, comp, subcomp, unit
+            * ardaid, i.e., the Id that we wish to re-use in the new dataset
+
+        RETURNS
+        -------
+            None
         """
 
-        # clean up CAS numbers
+        # Fix column names and clean up CAS numbers in DataFrame
         self.STR_old.rename(columns=self._header_harmonizing_dict, inplace=True)
         self.STR_old.cas = self.STR_old.cas.str.replace('^[0]*','')
 
+        # save to tmp table in sqlitedb
         c = self.conn.cursor()
         self.STR_old.to_sql('tmp', self.conn, if_exists='replace', index=False)
 
+        # populate old_labels
         c.executescript("""
             INSERT INTO old_labels(ardaid,
                                    name,
                                    name2,
+                                   name3,
                                    cas,
                                    comp,
                                    subcomp,
                                    unit)
-            SELECT DISTINCT ardaid, name, name2, cas, comp, subcomp, unit
+            SELECT DISTINCT ardaid, name, name2, name3, cas, comp, subcomp, unit
             FROM tmp;
             """)
 
+
+        # clean up
+        self.clean_label('old_labels', ('name', 'name2', 'name3'))
+
+        # match substid by cas and tag
         c.execute("""
             update old_labels
             set substid=(select distinct s.substid
                          from substances as s
                          where old_labels.cas=s.cas and
                          old_labels.tag=s.tag)
-            where old_labels.substId is null;
+            where old_labels.substId is null
+            and old_labels.cas is not null;
             """)
-        self.clean_label('old_labels')
+        matched = c.rowcount
+        if matched:
+            c.execute("select count(*) from old_labels where cas is not null")
+            potential_cas = c.fetchone()[0]
+            msg = "Matched {} out of {} rows with CAS from old_labels."
+            self.log.info(msg.format(matched, potential_cas))
 
-        for name in ('name','name2'):
+        # match substid by name and tag matching
+        for name in ('name','name2', 'name3'):
             c.execute("""
                 update old_labels
                 set substid=(select distinct n.substid
@@ -2650,7 +2680,62 @@ class Ecospold2Matrix(object):
                 where substId is null
             ;""".format(n=scrub(name)))
 
+            matched = c.rowcount
+            if matched:
+                msg = "Matched {} with {} and tag matching from old_labels."
+                self.log.info(msg.format(matched, name))
+
+        IPython.embed()
+
+        # match substid by cas only
+        c.execute("""
+            update old_labels
+            set substid=(select distinct s.substid
+                         from substances as s
+                         where old_labels.cas=s.cas)
+            where old_labels.substId is null
+            and old_labels.cas is not null;
+            """)
+        matched = c.rowcount
+        if matched:
+            msg = "Matched {} from old_labels by CAS only."
+            self.log.info(msg.format(matched))
+
+        # match substid by name only
+        for name in ('name','name2', 'name3'):
+            c.execute("""
+                update old_labels
+                set substid=(select distinct n.substid
+                             from names as n
+                             where old_labels.{n}=n.name)
+                where substId is null
+            ;""".format(n=scrub(name)))
+            matched = c.rowcount
+            if matched:
+                msg = "Matched {} with {} only from old_labels."
+                self.log.info(msg.format(matched, name))
+
+
+        # document unmatched old_labels
+        unmatched = c.fetchall()
+        unmatched = pd.read_sql("""
+            select * from old_labels
+            where substid is null;
+            """, self.conn)
+
+        if unmatched.shape[0]:
+            logfile =  'unmatched_oldLabel_subst.csv'
+            unmatched.to_csv(os.path.join(self.log_dir, logfile),
+                             sep='|', encodng='utf-8')
+            msg = "{} old_labels entries not matched to substance; see {}"
+            self.log.warning(msg.format(unmatched.shape[0], logfile))
+
+
+
+
+        # save to file
         self.conn.commit()
+
 
 
 def scrub(table_name):
