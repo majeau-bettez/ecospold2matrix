@@ -2653,7 +2653,7 @@ class Ecospold2Matrix(object):
         self.clean_label('old_labels', ('name', 'name2', 'name3'))
 
         # match substid by cas and tag
-        c.execute("""
+        sql_command="""
             update old_labels
             set substid=(select distinct s.substid
                          from substances as s
@@ -2661,59 +2661,46 @@ class Ecospold2Matrix(object):
                          old_labels.tag=s.tag)
             where old_labels.substId is null
             and old_labels.cas is not null;
-            """)
-        matched = c.rowcount
-        if matched:
-            c.execute("select count(*) from old_labels where cas is not null")
-            potential_cas = c.fetchone()[0]
-            msg = "Matched {} out of {} rows with CAS from old_labels."
-            self.log.info(msg.format(matched, potential_cas))
+            """
+        self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
+                "Matched {} with CAS from old_labels, out of {} unmatched rows." )
 
         # match substid by name and tag matching
         for name in ('name','name2', 'name3'):
-            c.execute("""
+            sql_command="""
                 update old_labels
                 set substid=(select distinct n.substid
                              from names as n
                              where old_labels.{n}=n.name and
                              old_labels.tag=n.tag)
-                where substId is null
-            ;""".format(n=scrub(name)))
-
-            matched = c.rowcount
-            if matched:
-                msg = "Matched {} with {} and tag matching from old_labels."
-                self.log.info(msg.format(matched, name))
-
-        IPython.embed()
+                where old_labels.substId is null
+            ;""".format(n=scrub(name))
+            self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
+                    "Matched {} with name and tag matching, out of {} unmatched rows from old_labels.")
 
         # match substid by cas only
-        c.execute("""
+        sql_command="""
             update old_labels
             set substid=(select distinct s.substid
                          from substances as s
                          where old_labels.cas=s.cas)
             where old_labels.substId is null
             and old_labels.cas is not null;
-            """)
-        matched = c.rowcount
-        if matched:
-            msg = "Matched {} from old_labels by CAS only."
-            self.log.info(msg.format(matched))
+            """
+        self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
+            "Matched {} from old_labels by CAS only, out of {} unmatched rows.")
 
         # match substid by name only
         for name in ('name','name2', 'name3'):
-            c.execute("""
+            sql_command = """
                 update old_labels
                 set substid=(select distinct n.substid
                              from names as n
                              where old_labels.{n}=n.name)
                 where substId is null
-            ;""".format(n=scrub(name)))
-            matched = c.rowcount
-            if matched:
-                msg = "Matched {} with {} only from old_labels."
-                self.log.info(msg.format(matched, name))
+            ;""".format(n=scrub(name))
+            self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
+                "Matched {} from old_labels by name only, out of {} unmatched rows.")
 
 
         # document unmatched old_labels
@@ -2730,12 +2717,35 @@ class Ecospold2Matrix(object):
             msg = "{} old_labels entries not matched to substance; see {}"
             self.log.warning(msg.format(unmatched.shape[0], logfile))
 
-
-
-
         # save to file
         self.conn.commit()
 
+    def _updatenull_log(self, sql_command, table, col,
+                log_msg="Updated {} out of {} null values"):
+
+
+        # define test command to detect updated null values
+        testcommand = """ select count(*) from {} where {} is null;
+                      """.format(scrub(table), scrub(col))
+
+        # define cursor
+        c = self.conn.cursor()
+
+        # Initial number of null values
+        c.execute(testcommand)
+        i0 = c.fetchone()[0]
+
+        # do the deed
+        c.execute(sql_command)
+        self.conn.commit()
+
+        # see how many null values are left
+        c.execute(testcommand)
+        i1 = c.fetchone()[0]
+
+        # log results
+        self.log.info(log_msg.format(scrub(str(i0-i1)), scrub(str(i0))))
+        return i0-i1
 
 
 def scrub(table_name):

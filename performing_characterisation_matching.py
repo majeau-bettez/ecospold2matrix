@@ -53,4 +53,4 @@ self.STR_old.rename(columns={'ecoinvent_name' : 'name3',
 print(self.STR_old.columns)
 parser.integrate_old_labels()
 print("Done with performing characterisation")
-IPython
+IPython.embed()
