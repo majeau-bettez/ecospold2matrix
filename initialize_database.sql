@@ -91,11 +91,12 @@ parentcomp  TEXT    REFERENCES comp(compName)
 DROP TABLE IF EXISTS observedflows;
 CREATE TABLE observedflows(
 id          INTEGER     NOT NULL PRIMARY KEY,
+ardaId      integer     UNIQUE,
+ecolabelId 
 elflow_id   integer     UNIQUE,
 substId     INTEGER     NOT NULL REFERENCES substances,
 comp        TEXT        NOT NULL references comp,
 subcomp     TEXT        references subcomp,
-ardaId      integer     UNIQUE,
 CONSTRAINT uniqueFlow UNIQUE(elflow_id, substId, comp, subcomp)
 );
 
@@ -177,6 +178,24 @@ FOREIGN KEY (name2, tag) REFERENCES names(name, tag)
 -- Cannot put uniqueness constraints, data in a mess
 );
 
+DROP TABLE IF EXISTS labels_out;
+CREATE TABLE labels_out(
+id          INTEGER  NOT NULL PRIMARY KEY,
+substId     INTEGER REFERENCES substances,
+name        TEXT    ,
+tag         TEXT    DEFAULT NULL,
+comp        TEXT    NOT NULL references comp(compName),
+subcomp     TEXT    references subcomp(subcompName),
+formula     TEXT    ,
+unit        TEXT    ,
+cas         text    CHECK (cas NOT LIKE '0%'),
+dsid        integer,
+name2       TEXT,
+CONSTRAINT hasAName CHECK(NAME IS NOT NULL OR name2 IS NOT NULL),
+FOREIGN KEY (name, tag) REFERENCES names(name, tag),
+FOREIGN KEY (name2, tag) REFERENCES names(name, tag)
+);
+
 --==========================================
 -- MATCHING ELEMENTARY FLOWS ANC CHAR FACTORS
 --===========================================
@@ -215,9 +234,10 @@ scheme      TEXT    ,
 UNIQUE(comp, obs_sc, scheme)
 );
 
+-- TODO: connect with references
 DROP TABLE IF EXISTS obs2char;
 CREATE TABLE obs2char(
-obsflowId   INTEGER,
+flowId   INTEGER,
 impactId    text    not null,
 factorId    int not null,
 factorValue double precision    not null,

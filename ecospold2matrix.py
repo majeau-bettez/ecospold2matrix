@@ -2704,7 +2704,6 @@ class Ecospold2Matrix(object):
 
 
         # document unmatched old_labels
-        unmatched = c.fetchall()
         unmatched = pd.read_sql("""
             select * from old_labels
             where substid is null;
@@ -2746,6 +2745,87 @@ class Ecospold2Matrix(object):
         # log results
         self.log.info(log_msg.format(scrub(str(i0-i1)), scrub(str(i0))))
         return i0-i1
+
+
+    def _generate_characterized_extensions(self):
+
+        # compile a label in sql with all ecoinvent flows and all characterized
+        # flows
+
+        # Get all ecoinvent flows straight in labels out
+        """
+        insert into labels_out(
+                substId, comp, subcomp,name, name2, cas, tag, unit)
+        select distinct
+                substId, comp, subcomp,name, name2, cas, tag, unit
+        from labels_ecoinvent;
+        """
+
+        # Get all characterized flows not covered in labels_out
+        # (detour through a temporary table for computational speed)
+        """
+            DROP TABLE IF EXISTS labels_tmp;
+            CREATE temporary TABLE labels_tmp(
+            id          INTEGER NOT NULL PRIMARY KEY,
+            substId     INTEGER,
+            name        TEXT    ,
+            tag         TEXT    DEFAULT NULL,
+            comp        TEXT    ,
+            subcomp     TEXT    ,
+            formula     TEXT    ,
+            unit        TEXT    ,
+            cas         text    ,
+            dsid        integer,
+            name2       TEXT,
+            unique(substid, comp, subcomp, unit)
+            );
+
+        -- populate labels_tmp with unique flows from labels_out
+        insert or ignore into labels_tmp
+        select * from labels_out;
+
+        -- insert all flows from labels_char that do not overlap with ecoinvent
+        -- if overlap, ignored
+        insert or ignore into labels_tmp(
+                substId, comp, subcomp,name, name2, cas, tag, unit)
+        select distinct
+                lc.substId, lc.comp, lc.subcomp, lc.name, lc.name2, lc.cas, lc.tag, lc.unit
+        from labels_char as lc;
+
+        -- get this all finally into labels_out
+        insert or ignore into labels_out(
+                substId, comp, subcomp,name, name2, cas, tag, unit)
+        select distinct
+                lt.substId, lt.comp, lt.subcomp, lt.name, lt.name2, lt.cas, lt.tag, lt.unit
+        from labels_tmp as lt;
+        """
+
+        # TODO: move to more appropriate place
+        """
+        insert into factors(
+            substId, comp, subcomp, unit, impactId, factorValue)
+        select distinct
+            substId, comp, subcomp, unit, impactId, factorValue
+        from raw_recipe;
+        """
+
+        # first insert, for perfect comp match
+        """
+        insert into obs2char(
+            obsflowId, impactId, factorId, factorValue)
+        select
+            lo.id, f.impactId, f.factorId, f.factorValue
+        from
+            labels_out lo, factors f
+        where lo.substId = f.substId and
+              lo.comp = f.comp and
+              lo.subcomp = f.subcomp and
+              lo.unit = f.unit;
+        """
+        
+        # second insert for comp proxy TODO   
+
+        # pivot
 
 
 def scrub(table_name):
