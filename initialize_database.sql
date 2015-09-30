@@ -87,19 +87,6 @@ subcompName TEXT    PRIMARY KEY,
 parentcomp  TEXT    REFERENCES comp(compName)
 );
 
--- elementary flow tables (named observed flows for no good reason)
-DROP TABLE IF EXISTS observedflows;
-CREATE TABLE observedflows(
-id          INTEGER     NOT NULL PRIMARY KEY,
-ardaId      integer     UNIQUE,
-ecolabelId 
-elflow_id   integer     UNIQUE,
-substId     INTEGER     NOT NULL REFERENCES substances,
-comp        TEXT        NOT NULL references comp,
-subcomp     TEXT        references subcomp,
-CONSTRAINT uniqueFlow UNIQUE(elflow_id, substId, comp, subcomp)
-);
-
 
 drop table if exists old_labels;
 create table old_labels(
@@ -242,7 +229,7 @@ impactId    text    not null,
 factorId    int not null,
 factorValue double precision    not null,
 scheme      TEXT,
-UNIQUE(obsflowId, impactId, scheme)
+UNIQUE(flowId, impactId, scheme)
 );
 
 --====================================

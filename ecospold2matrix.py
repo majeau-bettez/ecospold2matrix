@@ -224,6 +224,12 @@ class Ecospold2Matrix(object):
                   ["air",    "low population density, long-term",
                                                         "low population density"]
                 ])
+
+        self.fallback_sc = {
+                'water':'river',
+                'soil': 'industrial',
+                'air': 'high population density'}
+
         self._header_harmonizing_dict = {
                 'subcompartment':'subcomp',
                 'Subcompartment':'subcomp',
@@ -2137,6 +2143,14 @@ class Ecospold2Matrix(object):
 
             """.format(t=table))
 
+        try:
+            c.executescript( """
+                update {t} set impactId=replace(impactId,')','');
+                update {t} set impactId=replace(impactid,'(','_');
+                """.format(t=table))
+        except sqlite3.OperationalError:
+            pass
+
         # NULLIFY SOME COLUMNS IF ARGUMENTS OF LENGTH ZERO
         for col in ('cas',) + name_cols:
             col = scrub(col)
@@ -2346,11 +2360,9 @@ class Ecospold2Matrix(object):
             except NameError:
                 raw_recipe = foo.copy()
             except:
-                print("Problem with concat")
-                IPython.embed()
+                self.log.warning("Problem with concat")
 
-
-        print("Done with concatenating")
+        self.log.info("Done with concatenating")
 
 
         # Define numerical index
@@ -2431,6 +2443,7 @@ class Ecospold2Matrix(object):
         self._integrate_flows_withCAS(tables)
         self._integrate_flows_withoutCAS(tables)
         self._finalize_labels(tables)
+        self._generate_characterized_extensions()
         self.conn.commit()
 
     def _update_labels_from_names(self, tables=('raw_ecoinvent', 'raw_recipe')):
@@ -2449,6 +2462,7 @@ class Ecospold2Matrix(object):
             AND {t}.cas IS NULL
             ; """.format(t=scrub(table))
             );
+        self.conn.commit()
 
     def _insert_names_from_labels(self, tables=('raw_ecoinvent, raw_recipe')):
 
@@ -2501,6 +2515,7 @@ class Ecospold2Matrix(object):
             """.format(t=scrub(table)))
 
         self._insert_names_from_labels()
+        self.conn.commit()
 
 
     def _integrate_flows_withoutCAS(self, tables=('raw_ecoinvent', 'raw_recipe')):
@@ -2544,6 +2559,7 @@ class Ecospold2Matrix(object):
 
             # update labels substid from names
             self._update_labels_from_names()
+        self.conn.commit()
 
 
     def _finalize_labels(self, tables=('raw_recipe', 'raw_ecoinvent')):
@@ -2588,12 +2604,19 @@ class Ecospold2Matrix(object):
 #
         for i in range(len(tables)):
             table = scrub(tables[i])
-            print(table)
             if 'coinvent' in table:
                 t_out = 'labels_ecoinvent'
             else:
                 t_out = 'labels_char'
-            print(t_out)
+                c.execute(
+                """
+                    insert into factors(
+                        substId, comp, subcomp, unit, impactId, factorValue)
+                    select distinct
+                        substId, comp, subcomp, unit, impactId, factorValue
+                    from {t};
+                """.format(t=table)
+                )
 
             self.conn.executescript("""
             INSERT INTO {to}(
@@ -2604,6 +2627,9 @@ class Ecospold2Matrix(object):
 
             -- DROP TABLE IF EXISTS {t}
             """.format(t=table, to=t_out))
+
+
+
 
 
         self.conn.commit()
@@ -2753,16 +2779,19 @@ class Ecospold2Matrix(object):
         # flows
 
         # Get all ecoinvent flows straight in labels out
+        c = self.conn.cursor()
+        c.execute(
         """
         insert into labels_out(
                 substId, comp, subcomp,name, name2, cas, tag, unit)
         select distinct
                 substId, comp, subcomp,name, name2, cas, tag, unit
         from labels_ecoinvent;
-        """
+        """)
 
         # Get all characterized flows not covered in labels_out
         # (detour through a temporary table for computational speed)
+        c.executescript(
         """
             DROP TABLE IF EXISTS labels_tmp;
             CREATE temporary TABLE labels_tmp(
@@ -2798,32 +2827,30 @@ class Ecospold2Matrix(object):
         select distinct
                 lt.substId, lt.comp, lt.subcomp, lt.name, lt.name2, lt.cas, lt.tag, lt.unit
         from labels_tmp as lt;
-        """
+        """)
 
-        # TODO: move to more appropriate place
-        """
-        insert into factors(
-            substId, comp, subcomp, unit, impactId, factorValue)
-        select distinct
-            substId, comp, subcomp, unit, impactId, factorValue
-        from raw_recipe;
-        """
 
         # first insert, for perfect comp match
+        c.execute(
         """
-        insert into obs2char(
-            obsflowId, impactId, factorId, factorValue)
-        select
+        INSERT INTO obs2char(
+            flowId, impactId, factorId, factorValue)
+        SELECT
             lo.id, f.impactId, f.factorId, f.factorValue
-        from
+        FROM
             labels_out lo, factors f
-        where lo.substId = f.substId and
-              lo.comp = f.comp and
-              lo.subcomp = f.subcomp and
-              lo.unit = f.unit;
-        """
-        
-        # second insert for comp proxy TODO   
+        WHERE
+            lo.substId = f.substId AND
+            lo.comp = f.comp AND
+            lo.subcomp = f.subcomp AND
+            lo.unit = f.unit;
+        """)
+        self.log.info("Matched {} flows and factors".format(c.rowcount))
+        IPython.embed()
+
+        # second insert for subcomp undefined
+
+        # third insert for subcomp fallback
 
         # pivot
 
