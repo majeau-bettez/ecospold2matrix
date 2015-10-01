@@ -167,17 +167,19 @@ FOREIGN KEY (name2, tag) REFERENCES names(name, tag)
 
 DROP TABLE IF EXISTS labels_out;
 CREATE TABLE labels_out(
-id          INTEGER  NOT NULL PRIMARY KEY,
-substId     INTEGER REFERENCES substances,
-name        TEXT    ,
-tag         TEXT    DEFAULT NULL,
-comp        TEXT    NOT NULL references comp(compName),
-subcomp     TEXT    references subcomp(subcompName),
-formula     TEXT    ,
-unit        TEXT    ,
-cas         text    CHECK (cas NOT LIKE '0%'),
-dsid        integer,
-name2       TEXT,
+id          	INTEGER  NOT NULL PRIMARY KEY,
+dsid        	TEXT,
+substId     	INTEGER REFERENCES substances,
+name        	TEXT    ,
+tag         	TEXT    DEFAULT NULL,
+comp        	TEXT    NOT NULL references comp(compName),
+subcomp     	TEXT    REFERENCES subcomp(subcompName),
+formula     	TEXT    ,
+unit        	TEXT    ,
+cas         	text    CHECK (cas NOT LIKE '0%'),
+name2       	TEXT,
+ardaid	    	INTEGER,
+characterized	Boolean	DEFAULT NULL
 CONSTRAINT hasAName CHECK(NAME IS NOT NULL OR name2 IS NOT NULL),
 FOREIGN KEY (name, tag) REFERENCES names(name, tag),
 FOREIGN KEY (name2, tag) REFERENCES names(name, tag)
@@ -224,11 +226,12 @@ UNIQUE(comp, obs_sc, scheme)
 -- TODO: connect with references
 DROP TABLE IF EXISTS obs2char;
 CREATE TABLE obs2char(
-flowId   INTEGER,
+flowId      INTEGER,
+dsid        TEXT,
 impactId    text    not null,
 factorId    int not null,
 factorValue double precision    not null,
-scheme      TEXT,
+scheme      TEXT DEFAULT '--',
 UNIQUE(flowId, impactId, scheme)
 );
 

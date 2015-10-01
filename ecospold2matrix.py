@@ -162,11 +162,14 @@ class Ecospold2Matrix(object):
         # FINAL VARIABLES: SYMMETRIC SYSTEM, NORMALIZED AND UNNORMALIZED
         self.PRO = None             # Process labels, rows/cols of A-matrix
         self.STR = None             # Factors labels, rows extensions
+        self.IMP = None             # impact categories
         self.A = None               # Normalized Leontief coefficient matrix
         self.F = None               # Normalized factors of production,i.e.,
                                     #       elementary exchange coefficients
         self.Z = None               # Intermediate unnormalized process flows
         self.G_pro = None           # Unnormalized Process factor requirements
+
+        self.C = None               # characterisation matrix
 
         # Final variables, unallocated and unnormalized inventory
         self.U = None               # Table of use of products by activities
@@ -210,7 +213,7 @@ class Ecospold2Matrix(object):
         # MORE HARDCODED PARAMETERS
 
         self.obs2char_subcomp = pd.DataFrame(
-            columns=["comp", "obs_sc",            "char_sc"],
+            columns=["comp", "obs_sc",                  "char_sc"],
             data=[["soil",   "agricultural",            "agricultural"],
                   ["soil",   "forestry",                "forestry"],
                   ["air",    "high population density", "high population density"],
@@ -225,10 +228,12 @@ class Ecospold2Matrix(object):
                                                         "low population density"]
                 ])
 
-        self.fallback_sc = {
-                'water':'river',
-                'soil': 'industrial',
-                'air': 'high population density'}
+        self.fallback_sc = pd.DataFrame(
+                columns=["comp", "fallbacksubcomp"],
+                data=[[ 'water','river'],
+                      [ 'soil', 'industrial'],
+                      [ 'air', 'high population density']
+                      ])
 
         self._header_harmonizing_dict = {
                 'subcompartment':'subcomp',
@@ -275,21 +280,17 @@ class Ecospold2Matrix(object):
                 ['56-35-9', 'tributyltin compounds', '56573-85-4',
                     'both cas numbers tributyltin based. picked recipe cas'],
                 # IPCC GHG notation
-                # http://www.deq.state.ne.us/press.nsf/3eb24ee59e8286048625663a006354f0/1721875d44a691d9862578bf005ba3ce/$FILE/GHG%20table_Handout.pdf
-                ['20193–67–3',
-                    'ether, 1,2,2-trifluoroethyl trifluoromethyl-, hfe-236fa',
-                    None,
-                    'IPCC char fixes'],
-                ['57041–67–5',
-                    'ether, 1,2,2-trifluoroethyl trifluoromethl-, hfe-236ea2',
-                    None,
-                    'IPCC char fixes'],
-                ['160620-20-2', '%356pcc3%', None, 'IPCC chem fixes'],
-                ['35042-99-0',  '%356pcf3%', None, 'IPCC chem fixes'],
-                ['382-34-3',    '%356mec3%', None, 'IPCC chem fixes'],
-                ['22410-44-2',  '%245cb2%',  None, 'IPCC chem fixes'],
-                ['84011-15-4',  '%245fa1%',  None, 'IPCC chem fixes'],
-                ['28523–86–6',  '%347mcc3%', None, 'IPCC chem fixes']
+                # ELECTRONIC CODE OF FEDERAL REGULATIONS
+                # http://www.ecfr.gov/cgi-bin/text-idx?SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
+                ['20193–67–3',  '%hfe-236fa',  None, 'IPCC char fixes'],
+                ['57041–67–5',  '%hfe-236ea2', None, 'IPCC char fixes'],
+                ['160620-20-2', '%356pcc3%',   None, 'IPCC chem fixes'],
+                ['50807-77-7',  '%356pcf2',    None, 'IPCC chem fixes'],
+                ['35042-99-0',  '%356pcf3%',   None, 'IPCC chem fixes'],
+                ['382-34-3',    '%356mec3%',   None, 'IPCC chem fixes'],
+                ['22410-44-2',  '%245cb2%',    None, 'IPCC chem fixes'],
+                ['84011-15-4',  '%245fa1%',    None, 'IPCC chem fixes'],
+                ['375-03-1',    '%347mcc3%',   None, 'IPCC chem fixes']
                 ])
 
 
@@ -1480,7 +1481,7 @@ class Ecospold2Matrix(object):
                            values='amount',
                            index='elementaryExchangeId',
                            columns='fileId').reindex(index=self.STR.index,
-                                                  columns=self.PRO.index)
+                                                     columns=self.PRO.index)
 
         # Take care of sign convention for waste
         if self.positive_waste:
@@ -2261,14 +2262,14 @@ class Ecospold2Matrix(object):
 
         # export to tmp SQL table
         c = self.conn.cursor()
-        self.STR.to_sql('tmp',
+        self.STR.to_sql('dirty_ecoinvent',
                         self.conn,
                         index_label='id',
                         if_exists='replace')
         c.execute( """
         INSERT INTO raw_ecoinvent(id, name, comp, subcomp, unit, cas)
         SELECT DISTINCT id, name, comp, subcomp, unit, cas
-        FROM tmp;
+        FROM dirty_ecoinvent;
         """)
 
         self.clean_label('raw_ecoinvent')
@@ -2423,6 +2424,10 @@ class Ecospold2Matrix(object):
                                      self.conn,
                                      if_exists='replace',
                                      index=False)
+        self.fallback_sc.to_sql('fallback_sc',
+                                self.conn,
+                                if_exists='replace',
+                                index=False)
 
         self.conn.commit()
         c.executescript(
@@ -2439,11 +2444,122 @@ class Ecospold2Matrix(object):
 
         self.conn.commit()
 
+    def integrate_old_labels(self):
+        """
+        Read in old labels in order to reuse the same Ids for the same flows,
+        for backward compatibility of any inventory using the new dataset
+
+        REQUIREMENTS
+        ------------
+
+        self.STR_old must be defined with:
+            * with THREE name columns called name, name2, name3
+            * cas, comp, subcomp, unit
+            * ardaid, i.e., the Id that we wish to re-use in the new dataset
+
+        RETURNS
+        -------
+            None
+        """
+
+        # Fix column names and clean up CAS numbers in DataFrame
+        self.STR_old.rename(columns=self._header_harmonizing_dict, inplace=True)
+        self.STR_old.cas = self.STR_old.cas.str.replace('^[0]*','')
+
+        # save to tmp table in sqlitedb
+        c = self.conn.cursor()
+        self.STR_old.to_sql('tmp', self.conn, if_exists='replace', index=False)
+
+        # populate old_labels
+        c.executescript("""
+            INSERT INTO old_labels(ardaid,
+                                   name,
+                                   name2,
+                                   name3,
+                                   cas,
+                                   comp,
+                                   subcomp,
+                                   unit)
+            SELECT DISTINCT ardaid, name, name2, name3, cas, comp, subcomp, unit
+            FROM tmp;
+            """)
+
+
+        # clean up
+        self.clean_label('old_labels', ('name', 'name2', 'name3'))
+
+        # match substid by cas and tag
+        sql_command="""
+            update old_labels
+            set substid=(select distinct s.substid
+                         from substances as s
+                         where old_labels.cas=s.cas and
+                         old_labels.tag=s.tag)
+            where old_labels.substId is null
+            and old_labels.cas is not null;
+            """
+        self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
+                "Matched {} with CAS from old_labels, out of {} unmatched rows." )
+
+        # match substid by name and tag matching
+        for name in ('name','name2', 'name3'):
+            sql_command="""
+                update old_labels
+                set substid=(select distinct n.substid
+                             from names as n
+                             where old_labels.{n}=n.name and
+                             old_labels.tag=n.tag)
+                where old_labels.substId is null
+            ;""".format(n=scrub(name))
+            self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
+                    "Matched {} with name and tag matching, out of {} unmatched rows from old_labels.")
+
+        # match substid by cas only
+        sql_command="""
+            update old_labels
+            set substid=(select distinct s.substid
+                         from substances as s
+                         where old_labels.cas=s.cas)
+            where old_labels.substId is null
+            and old_labels.cas is not null;
+            """
+        self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
+            "Matched {} from old_labels by CAS only, out of {} unmatched rows.")
+
+        # match substid by name only
+        for name in ('name','name2', 'name3'):
+            sql_command = """
+                update old_labels
+                set substid=(select distinct n.substid
+                             from names as n
+                             where old_labels.{n}=n.name)
+                where substId is null
+            ;""".format(n=scrub(name))
+            self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
+                "Matched {} from old_labels by name only, out of {} unmatched rows.")
+
+
+        # document unmatched old_labels
+        unmatched = pd.read_sql("""
+            select * from old_labels
+            where substid is null;
+            """, self.conn)
+
+        if unmatched.shape[0]:
+            logfile =  'unmatched_oldLabel_subst.csv'
+            unmatched.to_csv(os.path.join(self.log_dir, logfile),
+                             sep='|', encodng='utf-8')
+            msg = "{} old_labels entries not matched to substance; see {}"
+            self.log.warning(msg.format(unmatched.shape[0], logfile))
+
+        # save to file
+        self.conn.commit()
+
     def integrate_flows(self, tables=('raw_ecoinvent', 'raw_recipe')):
         self._integrate_flows_withCAS(tables)
         self._integrate_flows_withoutCAS(tables)
         self._finalize_labels(tables)
-        self._generate_characterized_extensions()
+        self._characterisation_matching()
         self.conn.commit()
 
     def _update_labels_from_names(self, tables=('raw_ecoinvent', 'raw_recipe')):
@@ -2634,116 +2750,195 @@ class Ecospold2Matrix(object):
 
         self.conn.commit()
 
-    def integrate_old_labels(self):
-        """
-        Read in old labels in order to reuse the same Ids for the same flows,
-        for backward compatibility of any inventory using the new dataset
-
-        REQUIREMENTS
-        ------------
-
-        self.STR_old must be defined with:
-            * with THREE name columns called name, name2, name3
-            * cas, comp, subcomp, unit
-            * ardaid, i.e., the Id that we wish to re-use in the new dataset
-
-        RETURNS
-        -------
-            None
+    def _characterisation_matching(self):
+        """ Produce stressor (STR) and impact (IMP) labels, and
+        characterisation matrix (C).
         """
 
-        # Fix column names and clean up CAS numbers in DataFrame
-        self.STR_old.rename(columns=self._header_harmonizing_dict, inplace=True)
-        self.STR_old.cas = self.STR_old.cas.str.replace('^[0]*','')
-
-        # save to tmp table in sqlitedb
         c = self.conn.cursor()
-        self.STR_old.to_sql('tmp', self.conn, if_exists='replace', index=False)
 
-        # populate old_labels
-        c.executescript("""
-            INSERT INTO old_labels(ardaid,
-                                   name,
-                                   name2,
-                                   name3,
-                                   cas,
-                                   comp,
-                                   subcomp,
-                                   unit)
-            SELECT DISTINCT ardaid, name, name2, name3, cas, comp, subcomp, unit
-            FROM tmp;
-            """)
+        # Get all ecoinvent flows straight in labelss_out
+        c.execute(
+        """
+        insert into labels_out(
+                dsid, substId, comp, subcomp,name, name2, cas, tag, unit)
+        select distinct
+                id, substId, comp, subcomp,name, name2, cas, tag, unit
+        from labels_ecoinvent;
+        """)
 
-
-        # clean up
-        self.clean_label('old_labels', ('name', 'name2', 'name3'))
-
-        # match substid by cas and tag
-        sql_command="""
-            update old_labels
-            set substid=(select distinct s.substid
-                         from substances as s
-                         where old_labels.cas=s.cas and
-                         old_labels.tag=s.tag)
-            where old_labels.substId is null
-            and old_labels.cas is not null;
-            """
-        self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
-                "Matched {} with CAS from old_labels, out of {} unmatched rows." )
-
-        # match substid by name and tag matching
-        for name in ('name','name2', 'name3'):
-            sql_command="""
-                update old_labels
-                set substid=(select distinct n.substid
-                             from names as n
-                             where old_labels.{n}=n.name and
-                             old_labels.tag=n.tag)
-                where old_labels.substId is null
-            ;""".format(n=scrub(name))
-            self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
-                    "Matched {} with name and tag matching, out of {} unmatched rows from old_labels.")
-
-        # match substid by cas only
-        sql_command="""
-            update old_labels
-            set substid=(select distinct s.substid
-                         from substances as s
-                         where old_labels.cas=s.cas)
-            where old_labels.substId is null
-            and old_labels.cas is not null;
-            """
-        self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
-            "Matched {} from old_labels by CAS only, out of {} unmatched rows.")
-
-        # match substid by name only
-        for name in ('name','name2', 'name3'):
-            sql_command = """
-                update old_labels
-                set substid=(select distinct n.substid
-                             from names as n
-                             where old_labels.{n}=n.name)
-                where substId is null
-            ;""".format(n=scrub(name))
-            self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
-                "Matched {} from old_labels by name only, out of {} unmatched rows.")
+        # Add all characterized flows not covered in labels_out
+        # (use a temporary table for computational speed)
+        c.executescript(
+        """
+            DROP TABLE IF EXISTS labels_tmp;
+            CREATE temporary TABLE labels_tmp(
+            id          INTEGER NOT NULL PRIMARY KEY,
+            substId     INTEGER,
+            name        TEXT    ,
+            tag         TEXT    DEFAULT NULL,
+            comp        TEXT    ,
+            subcomp     TEXT    ,
+            formula     TEXT    ,
+            unit        TEXT    ,
+            cas         text    ,
+            dsid        text,
+            name2       TEXT,
+            ardaid      integer,
+            characterized   boolean default null, 
+            unique(substid, comp, subcomp, unit)
+            );
+        """)
 
 
-        # document unmatched old_labels
-        unmatched = pd.read_sql("""
-            select * from old_labels
-            where substid is null;
-            """, self.conn)
+        c.execute("""
+        insert or ignore into labels_tmp(
+                dsid, substId, comp, subcomp,name, name2, cas, tag, unit)
+        select distinct
+                dsid, substId, comp, subcomp,name, name2, cas, tag, unit
+        from labels_out;
+        """)
 
-        if unmatched.shape[0]:
-            logfile =  'unmatched_oldLabel_subst.csv'
-            unmatched.to_csv(os.path.join(self.log_dir, logfile),
-                             sep='|', encodng='utf-8')
-            msg = "{} old_labels entries not matched to substance; see {}"
-            self.log.warning(msg.format(unmatched.shape[0], logfile))
+        # insert all flows from labels_char that do not overlap with ecoinvent
+        #-- if overlap, ignored
 
-        # save to file
-        self.conn.commit()
+        c.execute("""
+        insert or ignore into labels_tmp(
+                substId, comp, subcomp,name, name2, cas, tag, unit)
+        select distinct lc.substId,
+                        lc.comp,
+                        lc.subcomp,
+                        lc.name,
+                        lc.name2,
+                        lc.cas,
+                        lc.tag,
+                        lc.unit
+        from labels_char as lc;
+        """)
+
+        #-- get this all finally into labels_out
+        c.execute("""
+        insert or ignore into labels_out(
+                substId, comp, subcomp,name, name2, cas, tag, unit)
+        select distinct lt.substId,
+                        lt.comp,
+                        lt.subcomp,
+                        lt.name,
+                        lt.name2,
+                        lt.cas,
+                        lt.tag,
+                        lt.unit
+        from labels_tmp as lt;
+        """)
+
+        sql_command = """
+        update labels_out
+        set ardaid=(select ardaid from old_labels ol
+                    where labels_out.substId=ol.substId
+                    and labels_out.comp=ol.comp
+                    and labels_out.subcomp = ol.subcomp
+                    and labels_out.unit = ol.unit)
+        where labels_out.ardaid is null;
+        """
+        self._updatenull_log(sql_command, 'labels_out', 'ardaid', log_msg=
+                " Matched {} with ArdaID from old labels, out of {} unmatched rows."
+                )
+
+
+        # MATCH LABEL_OUT ROW WITH CHARACTERISATION FACTORS
+
+        # first match based on perfect comp correspondence
+        c.execute(
+        """
+        INSERT INTO obs2char(
+            flowId, impactId, factorId, factorValue, scheme)
+        SELECT DISTINCT
+            lo.id, f.impactId, f.factorId, f.factorValue, 'ReCiPe111'
+        FROM
+            labels_out lo, factors f
+        WHERE
+            lo.substId = f.substId AND
+            lo.comp = f.comp AND
+            lo.subcomp = f.subcomp AND
+            lo.unit = f.unit;
+        """)
+        self.log.info("Matched {} flows and factors, with exact subcomp"
+                      " matching".format(c.rowcount))
+
+#        SELECT distinct lo.id, f.impactId, count(*)
+#        FROM labels_out lo, factors f
+#        WHERE
+#            lo.substId = f.substId AND
+#            lo.comp = f.comp AND
+#            lo.subcomp = f.subcomp AND
+#            lo.unit = f.unit
+#        group by lo.id, f.impactId
+#        having count(*)>1;
+#
+
+
+
+        # second insert for subcomp undefined
+        c.execute(
+        """
+        INSERT or ignore INTO obs2char(
+            flowId, impactId, factorId, factorValue, scheme)
+        SELECT DISTINCT
+            lo.id, f.impactId, f.factorId, f.factorValue, 'ReCiPe111'
+        FROM
+            labels_out lo, factors f, obs2char_subcomps ocs
+        WHERE
+            lo.substId = f.substId AND
+            lo.comp = f.comp AND
+            lo.subcomp = ocs.obs_sc AND ocs.char_sc = f.subcomp AND
+            lo.unit = f.unit;
+        """)
+        self.log.info("Matched {} flows and factors, with approximate subcomp matching".format(c.rowcount))
+
+        # third insert for subcomp fallback
+        c.execute(
+        """
+        INSERT or ignore INTO obs2char(
+            flowId, dsid, impactId, factorId, factorValue, scheme)
+        SELECT DISTINCT
+            lo.id, lo.dsid, f.impactId, f.factorId, f.factorValue, 'ReCiPe111'
+        FROM
+            labels_out lo, factors f, fallback_sc fsc
+        WHERE
+            lo.substId = f.substId AND
+            lo.comp = f.comp AND lo.comp=fsc.comp AND
+            f.subcomp=fsc.fallbacksubcomp AND
+            lo.unit = f.unit;
+        """)
+        self.log.info("Matched {} flows and factors, by falling back to a "
+                "default subcompartment".format(c.rowcount))
+
+    def generate_characterized_extensions(self):
+
+        # get tables from dataframes
+        self.STR = pd.read_sql("select * from labels_out",
+                               self.conn,
+                               index_col='id')
+        obs2char = pd.read_sql("select * from obs2char", self.conn)
+
+        # Pivot!
+        self.C = pd.pivot_table(obs2char,
+                           values='factorValue',
+                           index='flowId',
+                           columns='impactId').reindex_axis(self.STR.index, 0)
+        self.C.fillna(0, inplace=True)
+
+        # complement with new ArdaID
+        anId = self.STR_old.ardaid.max()
+        for i, row in self.STR.iterrows():
+            if not row.ardaid > 0:
+                print('foo')
+                anId +=1
+                self.STR.ardaid[i] = anId
+
+        # Reindex based on ardaId
+        self.STR.index = self.STR.ix[:, 'ardaid'].values
+        self.C.index = self.STR.index
 
     def _updatenull_log(self, sql_command, table, col,
                 log_msg="Updated {} out of {} null values"):
@@ -2771,88 +2966,6 @@ class Ecospold2Matrix(object):
         # log results
         self.log.info(log_msg.format(scrub(str(i0-i1)), scrub(str(i0))))
         return i0-i1
-
-
-    def _generate_characterized_extensions(self):
-
-        # compile a label in sql with all ecoinvent flows and all characterized
-        # flows
-
-        # Get all ecoinvent flows straight in labels out
-        c = self.conn.cursor()
-        c.execute(
-        """
-        insert into labels_out(
-                substId, comp, subcomp,name, name2, cas, tag, unit)
-        select distinct
-                substId, comp, subcomp,name, name2, cas, tag, unit
-        from labels_ecoinvent;
-        """)
-
-        # Get all characterized flows not covered in labels_out
-        # (detour through a temporary table for computational speed)
-        c.executescript(
-        """
-            DROP TABLE IF EXISTS labels_tmp;
-            CREATE temporary TABLE labels_tmp(
-            id          INTEGER NOT NULL PRIMARY KEY,
-            substId     INTEGER,
-            name        TEXT    ,
-            tag         TEXT    DEFAULT NULL,
-            comp        TEXT    ,
-            subcomp     TEXT    ,
-            formula     TEXT    ,
-            unit        TEXT    ,
-            cas         text    ,
-            dsid        integer,
-            name2       TEXT,
-            unique(substid, comp, subcomp, unit)
-            );
-
-        -- populate labels_tmp with unique flows from labels_out
-        insert or ignore into labels_tmp
-        select * from labels_out;
-
-        -- insert all flows from labels_char that do not overlap with ecoinvent
-        -- if overlap, ignored
-        insert or ignore into labels_tmp(
-                substId, comp, subcomp,name, name2, cas, tag, unit)
-        select distinct
-                lc.substId, lc.comp, lc.subcomp, lc.name, lc.name2, lc.cas, lc.tag, lc.unit
-        from labels_char as lc;
-
-        -- get this all finally into labels_out
-        insert or ignore into labels_out(
-                substId, comp, subcomp,name, name2, cas, tag, unit)
-        select distinct
-                lt.substId, lt.comp, lt.subcomp, lt.name, lt.name2, lt.cas, lt.tag, lt.unit
-        from labels_tmp as lt;
-        """)
-
-
-        # first insert, for perfect comp match
-        c.execute(
-        """
-        INSERT INTO obs2char(
-            flowId, impactId, factorId, factorValue)
-        SELECT
-            lo.id, f.impactId, f.factorId, f.factorValue
-        FROM
-            labels_out lo, factors f
-        WHERE
-            lo.substId = f.substId AND
-            lo.comp = f.comp AND
-            lo.subcomp = f.subcomp AND
-            lo.unit = f.unit;
-        """)
-        self.log.info("Matched {} flows and factors".format(c.rowcount))
-        IPython.embed()
-
-        # second insert for subcomp undefined
-
-        # third insert for subcomp fallback
-
-        # pivot
 
 
 def scrub(table_name):

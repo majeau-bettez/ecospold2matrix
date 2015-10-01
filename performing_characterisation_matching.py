@@ -40,7 +40,10 @@ if fullrun:
     parser.populate_complementary_tables()
     parser.integrate_flows()
     os.system('cp ' + project_name + '_characterisation.db start_characterisation.db')
-    print('DONE!!!')
+    print('DONE!!! database copied to star_characterisation.db')
+else:
+    os.system('cp start_characterisation.db ' +
+               project_name + '_characterisation.db')
 
 
 oldeco_path = '/home/bill/documents/arda/dev_arda_client/data/ecoinvent/2.2/Ecoinvent22_ReCiPe108_H.mat'
