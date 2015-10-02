@@ -81,7 +81,7 @@ class Ecospold2Matrix(object):
     def __init__(self, sys_dir, project_name, out_dir='.', lci_dir=None,
                  positive_waste=False, prefer_pickles=False, nan2null=False,
                  save_interm=True, PRO_order=['ISIC', 'activityName'],
-                 STR_order=['comp', 'subcomp', 'name'],
+                 STR_order=['comp', 'name', 'subcomp'],
                  verbose=True):
 
         """ Defining an ecospold2matrix object, with key parameters that
@@ -158,6 +158,7 @@ class Ecospold2Matrix(object):
         self.outflows = None            # intermediate-exchange output flows
         self.elementary_flows = None    # elementary flows
         self.q = None                   # total supply of each product
+        self.STR_old = None
 
         # FINAL VARIABLES: SYMMETRIC SYSTEM, NORMALIZED AND UNNORMALIZED
         self.PRO = None             # Process labels, rows/cols of A-matrix
@@ -282,8 +283,8 @@ class Ecospold2Matrix(object):
                 # IPCC GHG notation
                 # ELECTRONIC CODE OF FEDERAL REGULATIONS
                 # http://www.ecfr.gov/cgi-bin/text-idx?SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
-                ['20193–67–3',  '%hfe-236fa',  None, 'IPCC char fixes'],
-                ['57041–67–5',  '%hfe-236ea2', None, 'IPCC char fixes'],
+                ['20193-67-3',  '%hfe-236fa',  None, 'IPCC char fixes'],
+                ['57041-67-5',  '%hfe-236ea2', None, 'IPCC char fixes'],
                 ['160620-20-2', '%356pcc3%',   None, 'IPCC chem fixes'],
                 ['50807-77-7',  '%356pcf2',    None, 'IPCC chem fixes'],
                 ['35042-99-0',  '%356pcf3%',   None, 'IPCC chem fixes'],
@@ -359,6 +360,7 @@ class Ecospold2Matrix(object):
         database_name = self.project_name + '_' + self.__DB_CHARACTERISATION
         try:
             self.conn = sqlite3.connect(self.project_name + '_' + self.__DB_CHARACTERISATION)
+            self.initialize_database()
         except:
             self.log.warning("Could not establish connection to database")
             pass
@@ -436,6 +438,12 @@ class Ecospold2Matrix(object):
 
         if with_absolute_flows:
             self.scale_up_AF()
+
+        print("starting characterisation")
+        self.process_ecoinvent_elementary_flows()
+        self.read_characterisation()
+        self.characterize_flows()
+        IPython.embed()
 
         # Save system to file
         self.save_system(fileformats)
@@ -2444,7 +2452,7 @@ class Ecospold2Matrix(object):
 
         self.conn.commit()
 
-    def integrate_old_labels(self):
+    def _integrate_old_labels(self):
         """
         Read in old labels in order to reuse the same Ids for the same flows,
         for backward compatibility of any inventory using the new dataset
@@ -2555,10 +2563,12 @@ class Ecospold2Matrix(object):
         # save to file
         self.conn.commit()
 
-    def integrate_flows(self, tables=('raw_ecoinvent', 'raw_recipe')):
+    def characterize_flows(self, tables=('raw_ecoinvent', 'raw_recipe')):
         self._integrate_flows_withCAS(tables)
         self._integrate_flows_withoutCAS(tables)
         self._finalize_labels(tables)
+        if self.STR_old is not None:
+            self._integrate_old_labels()
         self._characterisation_matching()
         self.conn.commit()
 
