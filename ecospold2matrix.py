@@ -2324,58 +2324,65 @@ class Ecospold2Matrix(object):
                 {'name':'TP'  , 'rows':5, 'range':'B:S', 'midpoint':'H4:S6'}
                  ]
         headers = ['comp','subcomp','recipeName','simaproName','cas','unit']
-        self.log.info("Careful, make sure you shift headers to the right by 1 column in FDP sheet of ReCiPe111.xlsx")
+
+        filename='ReCiPe111'
+        if self.prefer_pickles and os.path.exists(filename +'.pickle'):
+            with open(filename+'.pickle', 'rb') as f:
+                [imp, raw_recipe] = pickle.load(f)
+        else:
+            # Get all impact categories directly from excel file
+            print("reading for impacts")
+            self.log.info("Careful, make sure you shift headers to the right by 1 column in FDP sheet of ReCiPe111.xlsx")
+            wb = xlrd.open_workbook('ReCiPe111.xlsx')
+            imp =[]
+            for i in range(len(hardcoded)):
+                sheet = hardcoded[i]
+                imp = imp + xlsrange(wb, sheet['name'], sheet['midpoint'])
 
 
-        # Get all impact categories directly from excel file
-        print("reading for impacts")
-        wb = xlrd.open_workbook('ReCiPe111.xlsx')
-        imp =[]
-        for i in range(len(hardcoded)):
-            sheet = hardcoded[i]
-            imp = imp + xlsrange(wb, sheet['name'], sheet['midpoint'])
+            # GET ALL CHARACTERISATION FACTORS
+            raw_recipe = pd.DataFrame()
+            for i in range(len(hardcoded)):
+                sheet = hardcoded[i]
+                foo = pd.io.excel.read_excel('ReCiPe111.xlsx',
+                                             sheet['name'],
+                                             skiprows=range(sheet['rows']),
+                                             parse_cols=sheet['range'])
 
-        c.executemany('''insert into impacts(perspective, unit, impactId)
+
+                # clean up a bit
+                foo.rename(columns=self._header_harmonizing_dict, inplace=True)
+
+                foo.cas = foo.cas.str.replace('^[0]*','')
+                foo.ix[:, headers] = foo.ix[:, headers].fillna('')
+                foo = foo.set_index(headers).stack(dropna=True).reset_index(-1)
+                foo.columns=['impactId','factorValue']
+
+
+                # concatenate
+                try:
+                    raw_recipe = pd.concat([raw_recipe, foo],
+                                            axis=0,
+                                            join='outer')
+                except NameError:
+                    raw_recipe = foo.copy()
+                except:
+                    self.log.warning("Problem with concat")
+
+            self.log.info("Done with concatenating")
+            with open(filename+'.pickle', 'wb') as f:
+                pickle.dump([imp, raw_recipe], f)
+
+
+        # Define numerical index
+        raw_recipe.reset_index(inplace=True)
+
+        c.executemany('''insert or ignore into impacts(perspective, unit, impactId)
                          values(?,?,?)''', imp)
         c.execute('''update impacts set impactId=replace(impactid,')','');''')
         c.execute('''update impacts set impactId=replace(impactid,'(','_');''')
         self.conn.commit()
 
-
-        # GET ALL CHARACTERISATION FACTORS
-        raw_recipe = pd.DataFrame()
-        for i in range(len(hardcoded)):
-            sheet = hardcoded[i]
-            foo = pd.io.excel.read_excel('ReCiPe111.xlsx',
-                                         sheet['name'],
-                                         skiprows=range(sheet['rows']),
-                                         parse_cols=sheet['range'])
-
-
-            # clean up a bit
-            foo.rename(columns=self._header_harmonizing_dict, inplace=True)
-
-            foo.cas = foo.cas.str.replace('^[0]*','')
-            foo.ix[:, headers] = foo.ix[:, headers].fillna('')
-            foo = foo.set_index(headers).stack(dropna=True).reset_index(-1)
-            foo.columns=['impactId','factorValue']
-
-
-            # concatenate
-            try:
-                raw_recipe = pd.concat([raw_recipe, foo],
-                                        axis=0,
-                                        join='outer')
-            except NameError:
-                raw_recipe = foo.copy()
-            except:
-                self.log.warning("Problem with concat")
-
-        self.log.info("Done with concatenating")
-
-
-        # Define numerical index
-        raw_recipe.reset_index(inplace=True)
 
 
         raw_recipe.to_sql('tmp', self.conn, if_exists='replace', index=False)
