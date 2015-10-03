@@ -27,6 +27,15 @@ parser=e2m.Ecospold2Matrix('/mnt/collection/current_Version_3.1_cutoff_ecoSpold0
 self = parser
 c = self.conn.cursor()
 
+oldeco_path = '/home/bill/documents/arda/dev_arda_client/data/ecoinvent/2.2/Ecoinvent22_ReCiPe108_H.mat'
+matdict = scipy.io.loadmat(oldeco_path)
+a = np.array(matlab_tools.mine_nested_array(matdict['STR'], ''), dtype=object)
+self.STR_old = pd.DataFrame(a, columns=matlab_tools.mine_nested_array(matdict['STR_header'], '').squeeze().tolist())
+self.STR_old.rename(columns={'ecoinvent_name' : 'name3',
+                             'recipe_name': 'name',
+                             'simapro_name': 'name2'}, inplace = True)
+IPython.embed()
+
 print("Getting ecoinvent labels in object")
 parser.get_labels()
 
@@ -46,14 +55,6 @@ else:
                project_name + '_characterisation.db')
 
 
-oldeco_path = '/home/bill/documents/arda/dev_arda_client/data/ecoinvent/2.2/Ecoinvent22_ReCiPe108_H.mat'
-matdict = scipy.io.loadmat(oldeco_path)
-a = np.array(matlab_tools.mine_nested_array(matdict['STR'], ''), dtype=object)
-self.STR_old = pd.DataFrame(a, columns=matlab_tools.mine_nested_array(matdict['STR_header'], '').squeeze().tolist())
-self.STR_old.rename(columns={'ecoinvent_name' : 'name3',
-                             'recipe_name': 'name',
-                             'simapro_name': 'name2'}, inplace = True)
-print(self.STR_old.columns)
 parser.integrate_old_labels()
 print("Done with performing characterisation")
 IPython.embed()

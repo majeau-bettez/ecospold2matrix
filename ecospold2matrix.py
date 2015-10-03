@@ -442,6 +442,7 @@ class Ecospold2Matrix(object):
         print("starting characterisation")
         self.process_ecoinvent_elementary_flows()
         self.read_characterisation()
+        self.populate_complementary_tables()
         self.characterize_flows()
         IPython.embed()
 
@@ -2377,6 +2378,8 @@ class Ecospold2Matrix(object):
         # Define numerical index
         raw_recipe.reset_index(inplace=True)
 
+        IPython.embed()
+
         c.executemany('''insert or ignore into impacts(perspective, unit, impactId)
                          values(?,?,?)''', imp)
         c.execute('''update impacts set impactId=replace(impactid,')','');''')
@@ -2932,30 +2935,42 @@ class Ecospold2Matrix(object):
 
     def generate_characterized_extensions(self):
 
-        # get tables from dataframes
+        # get labels from database
         self.STR = pd.read_sql("select * from labels_out",
                                self.conn,
                                index_col='id')
-        obs2char = pd.read_sql("select * from obs2char", self.conn)
+        self.IMP = pd.read_sql("""select * from impacts
+                                  order by perspective, unit, impactId""",
+                               self.conn)
 
-        # Pivot!
+        # get table and pivot
+        obs2char = pd.read_sql("select * from obs2char", self.conn)
         self.C = pd.pivot_table(obs2char,
                            values='factorValue',
-                           index='flowId',
-                           columns='impactId').reindex_axis(self.STR.index, 0)
-        self.C.fillna(0, inplace=True)
+                           columns='flowId',
+                           index='impactId').reindex_axis(self.STR.index, 1)
+        self.C = self.C.reindex_axis(self.IMP.impactId.values, 0).fillna(0)
 
-        # complement with new ArdaID
+        # complement STR with new ArdaID
         anId = self.STR_old.ardaid.max()
         for i, row in self.STR.iterrows():
             if not row.ardaid > 0:
-                print('foo')
                 anId +=1
                 self.STR.ardaid[i] = anId
 
         # Reindex based on ardaId
-        self.STR.index = self.STR.ix[:, 'ardaid'].values
-        self.C.index = self.STR.index
+        self.STR.index = np.array(self.STR.ix[:, 'ardaid'].values, dtype=int)
+        self.C.columns = self.STR.index.copy()
+
+        Forg = self.F.fillna(0)
+        self.F = self.F.reindex_axis(self.STR.ix[:, 'dsid'].values, 0).fillna(0)
+        self.F.index = self.STR.index.copy()
+
+        assert(np.allclose(self.F.values.sum(), Forg.values.sum()))
+        assert((self.F.values > 0).sum() == (Forg.values > 0).sum())
+
+
+
 
     def _updatenull_log(self, sql_command, table, col,
                 log_msg="Updated {} out of {} null values"):
