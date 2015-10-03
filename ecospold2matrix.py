@@ -2378,8 +2378,6 @@ class Ecospold2Matrix(object):
         # Define numerical index
         raw_recipe.reset_index(inplace=True)
 
-        IPython.embed()
-
         c.executemany('''insert or ignore into impacts(perspective, unit, impactId)
                          values(?,?,?)''', imp)
         c.execute('''update impacts set impactId=replace(impactid,')','');''')
@@ -2512,7 +2510,7 @@ class Ecospold2Matrix(object):
             set substid=(select distinct s.substid
                          from substances as s
                          where old_labels.cas=s.cas and
-                         old_labels.tag=s.tag)
+                         old_labels.tag like s.tag)
             where old_labels.substId is null
             and old_labels.cas is not null;
             """
@@ -2525,8 +2523,8 @@ class Ecospold2Matrix(object):
                 update old_labels
                 set substid=(select distinct n.substid
                              from names as n
-                             where old_labels.{n}=n.name and
-                             old_labels.tag=n.tag)
+                             where old_labels.{n} like n.name and
+                             old_labels.tag like n.tag)
                 where old_labels.substId is null
             ;""".format(n=scrub(name))
             self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
@@ -2543,6 +2541,8 @@ class Ecospold2Matrix(object):
             """
         self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
             "Matched {} from old_labels by CAS only, out of {} unmatched rows.")
+        self.conn.commit()
+        IPython.embed()
 
         # match substid by name only
         for name in ('name','name2', 'name3'):
@@ -2550,7 +2550,7 @@ class Ecospold2Matrix(object):
                 update old_labels
                 set substid=(select distinct n.substid
                              from names as n
-                             where old_labels.{n}=n.name)
+                             where old_labels.{n} like n.name)
                 where substId is null
             ;""".format(n=scrub(name))
             self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=

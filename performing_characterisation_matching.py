@@ -27,27 +27,27 @@ parser=e2m.Ecospold2Matrix('/mnt/collection/current_Version_3.1_cutoff_ecoSpold0
 self = parser
 c = self.conn.cursor()
 
-oldeco_path = '/home/bill/documents/arda/dev_arda_client/data/ecoinvent/2.2/Ecoinvent22_ReCiPe108_H.mat'
-matdict = scipy.io.loadmat(oldeco_path)
-a = np.array(matlab_tools.mine_nested_array(matdict['STR'], ''), dtype=object)
-self.STR_old = pd.DataFrame(a, columns=matlab_tools.mine_nested_array(matdict['STR_header'], '').squeeze().tolist())
-self.STR_old.rename(columns={'ecoinvent_name' : 'name3',
-                             'recipe_name': 'name',
-                             'simapro_name': 'name2'}, inplace = True)
-IPython.embed()
+parser.STR_old = pd.DataFrame.from_csv('ecoinvent22_ArdaSTR.csv',sep='|')
+# oldeco_path = '/home/bill/documents/arda/dev_arda_client/data/ecoinvent/2.2/Ecoinvent22_ReCiPe108_H.mat'
+# matdict = scipy.io.loadmat(oldeco_path)
+# a = np.array(matlab_tools.mine_nested_array(matdict['STR'], ''), dtype=object)
+# self.STR_old = pd.DataFrame(a, columns=matlab_tools.mine_nested_array(matdict['STR_header'], '').squeeze().tolist())
+#self.STR_old.rename(columns={'ecoinvent_name' : 'name3',
+#                             'recipe_name': 'name',
+#                             'simapro_name': 'name2'}, inplace = True)
 
 print("Getting ecoinvent labels in object")
 parser.get_labels()
 
 if fullrun:
-    print("initialize database")
-    parser.initialize_database()
+#    print("initialize database")
+#    parser.initialize_database()
     print("Processing ecoinvent flows")
     parser.process_ecoinvent_elementary_flows()
     print("reading characterised flows")
     parser.read_characterisation()
     parser.populate_complementary_tables()
-    parser.integrate_flows()
+    parser.characterize_flows()
     os.system('cp ' + project_name + '_characterisation.db start_characterisation.db')
     print('DONE!!! database copied to star_characterisation.db')
 else:
@@ -55,6 +55,6 @@ else:
                project_name + '_characterisation.db')
 
 
-parser.integrate_old_labels()
+#parser.integrate_old_labels()
 print("Done with performing characterisation")
 IPython.embed()
