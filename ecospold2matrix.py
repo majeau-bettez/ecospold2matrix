@@ -250,6 +250,7 @@ class Ecospold2Matrix(object):
                 'casNumber': 'cas',
                 'Unit':'unit' }
 
+        ref='http://www.ecfr.gov/cgi-bin/text-idx?  SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9'
         self._cas_conflicts=pd.DataFrame(
                 columns=['cas', 'aName', 'bad_cas', 'comment'],
                 data=[
@@ -261,7 +262,7 @@ class Ecospold2Matrix(object):
                 ['302-04-5', None, '71048-69-6',
                     'deprecated cas for thiocyanate'],
                 #
-                # wrong CAS
+                # WRONG CAS
                 #
                 ['138261-41-3', None,'38261-41-3', 'invalid cas for imidacloprid'],
                 ['108-62-3', 'metaldehyde', '9002-91-9',
@@ -270,36 +271,75 @@ class Ecospold2Matrix(object):
                     'invalid cas, typo for ethylenediamine'],
                 ['74-89-5', 'methyl amine', '75-89-5', 'invalid CAS (typo?)'],
                 #
-                # ion vs substance
+                # ION VS SUBSTANCE
                 #
-                ['7440-23-5','sodium', None, 'same cas for ion and subst.'],
+# TODO:Thiocyanate, ion|71048-69-6|water| 302-04-5 # ReCiPe might be right
+                ['17428-41-0', 'arsenic, ion', '7440-38-2',
+                    'scifinder CAS for arsenic ion, As(5+)'],
+                ['22537-48-0', 'cadmium, ion', '7440-43-9',
+                    'scifinder CAS for cadmium ion'], # todo: check
+                ['18540-29-9', 'chromium vi', '7440-47-3',
+                    'scifinder CAS for chromium VI, no need to use neutral '
+                    'compound CAS'],
+                ['17493-86-6', 'Copper, ion', '7440-50-8',
+                    'scifinder CAS for copper ion'], # todo: check
+                ['14701-22-5', 'Nickel, ion', '7440-02-0',
+                    'scifinder CAS for Nickel II'],
+                ['14701-22-5', 'Nickel II', '7440-02-0',
+                    'scifinder CAS for Nickel II'],
+                ['14701-21-4', 'silver, ion', '7440-22-4',
+                    'scifinder CAS for Ag(+1)'],
+                ['22537-50-4', 'tin, ion', '7440-31-5',
+                    'scifinder CAS for Sn(4+)'],
+                ['22541-77-1', 'vanadium, ion', '7440-62-2',
+                    'scifinder CAS for vanadium ion'],
+                ['23713-49-7', 'zinc, ion', '7440-66-6',
+                    'scifinder cas for Zn(2+)'],
                 ['2764-72-9', 'diquat','231-36-7',
-                    'was cas of ion, not neutral molecule'],
+                    'was cas of ion, not neutral molecule, caused conflict'
+                    ' with ReCiPe name-cas'],
                 #
-                # confusion
+                # CONFUSION
                 #
                 ['56-35-9', 'tributyltin compounds', '56573-85-4',
-                    'both cas numbers tributyltin based. picked recipe cas'],
+                    'both cas numbers tributyltin based. picked cas used by '
+                    'ReCiPe'],
+                #
                 # IPCC GHG notation
                 # ELECTRONIC CODE OF FEDERAL REGULATIONS
                 # http://www.ecfr.gov/cgi-bin/text-idx?SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
-                ['20193-67-3',  '%hfe-236fa',  None, 'IPCC char fixes'],
-                ['57041-67-5',  '%hfe-236ea2', None, 'IPCC char fixes'],
-                ['160620-20-2', '%356pcc3%',   None, 'IPCC chem fixes'],
-                ['50807-77-7',  '%356pcf2',    None, 'IPCC chem fixes'],
-                ['35042-99-0',  '%356pcf3%',   None, 'IPCC chem fixes'],
-                ['382-34-3',    '%356mec3%',   None, 'IPCC chem fixes'],
-                ['22410-44-2',  '%245cb2%',    None, 'IPCC chem fixes'],
-                ['84011-15-4',  '%245fa1%',    None, 'IPCC chem fixes'],
-                ['375-03-1',    '%347mcc3%',   None, 'IPCC chem fixes']
+                #
+                ['20193-67-3',  '%hfe-236fa',  None, 'scifinder CAS'],
+                ['57041-67-5',  '%hfe-236ea2', None, 'Desflurane: see '+ref],
+                ['160620-20-2', '%356pcc3%',   None, 'Scifinder CAS'],
+                ['50807-77-7',  '%356pcf2',    None, 'see '+ref],
+                ['35042-99-0',  '%356pcf3%',   None, 'see '+ref],
+                ['382-34-3',    '%356mec3%',   None, 'see '+ref],
+                ['22410-44-2',  '%245cb2%',    None, 'see '+ref],
+                ['84011-15-4',  '%245fa1%',    None, 'see '+ref],
+                ['375-03-1',    '%347mcc3%',   None, 'see '+ref]
                 ])
 
 
         self._name_conflicts=pd.DataFrame(
-            columns=['name', 'cas', 'bad_name'],
+            columns=['name', 'cas', 'bad_name', 'comment'],
             data=[
                 # formerly case sensitive name n,n-dimethyl, now n,n'-dimethyl
-                ['n,n''-dimethylthiourea', '534-13-4', None]
+                ['n,n''-dimethylthiourea', '534-13-4', None,
+                    'Uppercase sensitivity'],
+                ['2-butenal, (2e)-', '123-73-9', '2-butenal',
+                    'cas of (more common) E configuration; cas of mix is'
+                    ' rather 4170-30-3'],
+                ['3-(1-methylbutyl)phenyl methylcarbamate', '2282-34-0',
+                    'bufencarb', 'resolve name-cas collision in ReCiPe: CAS'
+                    ' points to specific chemical, not bufencarb (008065-36-9),'
+                    ' which is a mixture of this substance and phenol,'
+                    ' 3-(1-ethylpropyl)-, 1-(n-methylcarbamate)'],
+
+                ['chlordane (technical)', '12789-03-6', None,
+                    'pure chlordane has cas 000057-74-9, and is also defined'
+                    ' for cis and trans. This one here seems to be more of a'
+                    ' mixture or low grade, no formula in scifinder'],
                 ])
 
         # TODO: define scheme in self.obs2char
@@ -444,7 +484,6 @@ class Ecospold2Matrix(object):
         self.read_characterisation()
         self.populate_complementary_tables()
         self.characterize_flows()
-        IPython.embed()
 
         # Save system to file
         self.save_system(fileformats)
@@ -2176,7 +2215,7 @@ class Ecospold2Matrix(object):
         # DEFINE  TAGS BASED ON NAMES
         for tag in ('fossil', 'total', 'organic bound',
                 'non-fossil', 'as N', 'land transformation'):
-            for name in name_cols: 
+            for name in name_cols:
                 c.execute(""" update {t} set tag='{ta}'
                               where ({n} like '%, {ta}');
                           """.format(t=table, ta=tag, n=scrub(name)))
@@ -2215,6 +2254,10 @@ class Ecospold2Matrix(object):
                         where name like '%/m3';
 
                         """.format(t=table))
+
+        # Different types of "water", treat by name, not cas:
+        c.execute("""update {t} set cas=NULL
+                     where name like '%water%'""".format(t=table))
 
 
         # REPLACE FAULTY CAS NUMBERS CLEAN UP
@@ -2257,6 +2300,8 @@ class Ecospold2Matrix(object):
             if c.rowcount:
                 msg="Substituted CAS {} by {} for {} because {}"
                 self.log.info(msg.format( org_cas, row.cas, aName, row.comment))
+
+
 
 
     def process_ecoinvent_elementary_flows(self):
@@ -2333,7 +2378,10 @@ class Ecospold2Matrix(object):
         else:
             # Get all impact categories directly from excel file
             print("reading for impacts")
-            self.log.info("Careful, make sure you shift headers to the right by 1 column in FDP sheet of ReCiPe111.xlsx")
+            self.log.info("Careful, make sure you shift headers to the right by"
+                    " 1 column in FDP sheet of ReCiPe111.xlsx")
+            self.log.warning("Careful, Chromium VI values for TP should be "
+                    "copy-pasted from Chromium III values on the same sheet.")
             wb = xlrd.open_workbook('ReCiPe111.xlsx')
             imp =[]
             for i in range(len(hardcoded)):
@@ -2376,14 +2424,15 @@ class Ecospold2Matrix(object):
 
 
         # Define numerical index
+
         raw_recipe.reset_index(inplace=True)
 
-        c.executemany('''insert or ignore into impacts(perspective, unit, impactId)
+        c.executemany('''insert or ignore into
+                                impacts(perspective, unit, impactId)
                          values(?,?,?)''', imp)
         c.execute('''update impacts set impactId=replace(impactid,')','');''')
         c.execute('''update impacts set impactId=replace(impactid,'(','_');''')
         self.conn.commit()
-
 
 
         raw_recipe.to_sql('tmp', self.conn, if_exists='replace', index=False)
@@ -2396,8 +2445,66 @@ class Ecospold2Matrix(object):
         from tmp;
         """)
 
+        # RECIPE SPECIFIC Pre-CLEAN UP
+
+        # add Chromium VI back, since it did NOT get read in the spreadsheet
+        # (Error512 in the spreadsheet)
+        c.executescript("""
+        create temporary table tmp_cr as select * from raw_recipe
+                                         where cas='7440-47-3';
+        update tmp_cr set id = NULL, name='Chromium VI', name2='Chromium VI';
+        insert into raw_recipe select * from tmp_cr;
+        """)
+
+        # Force copper in water to be ionic (cas gets changed as part of normal
+        # clean_label())
+        c.execute("""
+            update raw_recipe
+            set name='Copper, ion', name2='Copper, ion'
+            where comp='water' and name like 'copper'
+            """)
+        if c.rowcount:
+            self.log.info("For compatibility with ecoinvent, forced {} copper"
+                  " emission to water to be ionic (Cu(2+)) instead"
+                  " of neutral.".format(c.rowcount))
+
         # major cleanup
         self.clean_label('raw_recipe')
+
+        # COMPARTMENT SPECIFIC FIXES,
+        # i.e., ions out of water in char, or neutral in water in inventory
+        c.execute("""
+                UPDATE {t}
+                 SET cas='16065-83-1', name='Chromium III', name2='Chromium III'
+                 WHERE cas='7440-47-3' AND comp='water' AND
+                 (name LIKE 'chromium iii' OR name2 LIKE 'chromium iii')
+                  """.format(t=table))
+        if c.rowcount:
+            self.log.info("Changed CAS changed one of the two names of {}"
+                " emissions of chromium III to water. Removes internal ambiguity"
+                " and resolves conflict with Ecoinvent.".format(c.rowcount))
+
+        # sort out neutral chromium
+        c.execute("""
+                  update raw_recipe
+                  set name='Chromium', name2='Chromium'
+                  WHERE cas='7440-46-3' AND comp<>'water' AND
+                  (name like 'chromium' or name2 like 'chromium')
+                  """)
+
+        # add Ni0 in groundwater, because exists in ecoinvent
+        c.executescript("""
+        create temporary table tmp_ni as select * from raw_recipe
+                                         where cas='14701-22-5' and
+                                         subcomp='river';
+        update tmp_ni set id = NULL, name='Nickel', name2='Nickel',
+        cas='7440-02-0';
+        insert into raw_recipe select * from tmp_cr;
+        """)
+
+        # ReCiPe-specific clean up:
+        IPython.embed()
+
         self.conn.commit()
 
 
@@ -2542,7 +2649,6 @@ class Ecospold2Matrix(object):
         self._updatenull_log(sql_command, 'old_labels', 'substid', log_msg=
             "Matched {} from old_labels by CAS only, out of {} unmatched rows.")
         self.conn.commit()
-        IPython.embed()
 
         # match substid by name only
         for name in ('name','name2', 'name3'):
@@ -2683,7 +2789,7 @@ class Ecospold2Matrix(object):
             SET substid=(
                     SELECT s.substid
                     FROM substances s
-                    WHERE ({t}.name=s.aName OR {t}.name2=s.aName)
+                    WHERE ({t}.name like s.aName OR {t}.name2 like s.aName)
                     AND {t}.tag IS s.tag
                     )
             WHERE substid IS NULL

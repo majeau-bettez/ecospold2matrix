@@ -3,19 +3,10 @@
 -- metals in ore are treated as synonyms
 -- update {t} set cas=null where name like '%, in ground' OR name like '% ore%';
 
-update {t} set cas=NULL where name like '%water%';
-
--- cas of 2-butenal, instead of (2e)-2-butenal
-update {t} set name='2-butenal, (2e)-', name2='crotonaldehyde, (e)-' where cas='123-73-9' and name='2-butenal';
 
 
 
-update {t} set name='3-(1-methylbutyl)phenyl methylcarbamate' where cas='2282-34-0'; -- instead of 'bufencarb' (008065-36-9), which is a mixture of this substance and phenol, 3-(1-ethylpropyl)-, 1-(n-methylcarbamate),
 
--- nomenclature conflict between recipe and simapro. 
--- pure chlordane is set with cas 000057-74-9, and is also defined for cis and trans. this one here seems to be more of a mixture or low grade. 
--- no molecular formula on scifinder
-update {t} set name2='chlordane (technical)' where cas='12789-03-6'; -- instead of simpley 'chlordane'
 
 
 -- same chemical (phenoxycarb) twice, once under deprecated cas, and with different characterisation factors. remove the rows with deprecated cas.
@@ -34,18 +25,7 @@ delete from {t} where cas='79127-80-3';
 -- http://www.deq.state.ne.us/press.nsf/3eb24ee59e8286048625663a006354f0/1721875d44a691d9862578bf005ba3ce/$file/ghg%20table_handout.pdf
 
 -------------------------------
--- cas for ions (for compatibility with ecoinvent)
-update {t} set cas='17428-41-0', name=name2 where name2='arsenic, ion' and cas='7440-38-2';
-update {t} set cas='22541-77-1', name=name2 where name2='vanadium, ion' and cas='7440-62-2';
-update {t} set cas='23713-49-7', name=name2 where name2='zinc, ion' and cas='7440-66-6';
-update {t} set cas='22537-50-4', name=name2 where name2='tin, ion' and cas='7440-31-5';
-update {t} set cas='14701-21-4', name=name2 where name2='silver, ion' and cas='7440-22-4';
-update {t} set cas='18540-29-9', name='chromium vi' where (name2='chromium vi' or name='chromium vi') and cas='7440-47-3';
-update {t} set cas='17493-86-6', name2='copper, ion', name='copper, ion' where cas='7440-50-8' and comp='water'; -- Copper emissions to water, treated as ions in Ecoinvent.
 
-
-update {t} set name=name2 where name='chromium iii' and cas='7440-47-3'; -- Disambiguation. Assume CAS is right, i.e. we want the neutral substance
-update {t} set cas='16065-83-1' where name='chromium iii'; -- Disambiguation, step 2: when really ion, give right CAS
 update {t} set name=name2 where cas='7440-02-0'; -- Step1 of nickel disambiguation
 update {t} set cas='14701-22-5' where name='nickel ii'; -- step2 of nickel ion
 update {t} set cas='22537-48-0', name=name2 where name2='cadmium, ion' and cas='7440-43-9';
