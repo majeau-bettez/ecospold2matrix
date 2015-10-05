@@ -1896,6 +1896,10 @@ class Ecospold2Matrix(object):
             None
 
         """
+        # Default values
+        C = np.array([])
+        IMP = np.array([])
+        IMP_header=np.array([])
 
         def pickling(filename, adict, what_it_is, mat):
             """ subfunction that handles creation of binary files """
@@ -1914,14 +1918,22 @@ class Ecospold2Matrix(object):
                 msg = "{} saved in {} with SHA-1 of {}"
                 self.log.info(msg.format(what_it_is, filename + '.mat', sha1))
 
-        def pickle_symm_norm(PRO, STR, A, F, mat=False):
+        def pickle_symm_norm(PRO=None, STR=None, IMP=None, A=None, F=None,
+                C=None, PRO_header=None, STR_header=None, IMP_header=None,
+                mat=False):
             """ nested function that prepares dictionary for symmetric,
             normalized (coefficient) system description file """
 
             adict = {'PRO': PRO,
                      'STR': STR,
+                     'IMP': IMP,
                      'A': A,
-                     'F': F}
+                     'F': F,
+                     'C': C,
+                     'PRO_header': PRO_header,
+                     'STR_header': STR_header,
+                     'IMP_header': IMP_header
+                     }
             pickling(file_pr + '_symmNorm', adict,
                      'Final, symmetric, normalized matrices', mat)
 
@@ -1956,7 +1968,7 @@ class Ecospold2Matrix(object):
             file_pr = os.path.join(self.out_dir,
                                    self.project_name + format_name)
             if self.A is not None:
-                pickle_symm_norm(self.PRO, self.STR, self.A, self.F)
+                pickle_symm_norm(PRO=self.PRO, STR=self.STR, A=self.A, F=self.F)
             if self.Z is not None:
                 pickle_symm_scaled(self.PRO, self.STR, self.Z, self.G_pro)
             if self.U is not None:
@@ -1974,7 +1986,7 @@ class Ecospold2Matrix(object):
             if self.A is not None:
                 A = self.A.to_sparse()
                 F = self.F.to_sparse()
-                pickle_symm_norm(self.PRO, self.STR, A, F)
+                pickle_symm_norm(PRO=self.PRO, STR=self.STR, A=A, F=F)
             if self.Z is not None:
                 Z = self.Z.to_sparse()
                 G_pro = self.G_pro.to_sparse()
@@ -1997,10 +2009,22 @@ class Ecospold2Matrix(object):
                                    self.project_name + format_name)
             PRO = self.PRO.reset_index().fillna('').values
             STR = self.STR.reset_index().fillna('').values
+            IMP = self.IMP.reset_index().fillna('').values
+            PRO_header = self.PRO.columns.values
+            PRO_header = PRO_header.reshape((1,len(PRO_header)))
+            STR_header = self.STR.columns.values
+            STR_header = STR_header.reshape((1, len(STR_header)))
+
+            if self.C is not None:
+                C = scipy.sparse.csc_matrix(self.C.fillna(0))
+                IMP_header = self.IMP.columns.values
+                IMP_header = IMP_header.reshape((1, len(IMP_header)))
             if self.A is not None:
                 A = scipy.sparse.csc_matrix(self.A.fillna(0))
                 F = scipy.sparse.csc_matrix(self.F.fillna(0))
-                pickle_symm_norm(PRO, STR, A, F, mat=True)
+                pickle_symm_norm(PRO=PRO, STR=STR, IMP=IMP, A=A, F=F, C=C,
+                        PRO_header=PRO_header, STR_header=STR_header,
+                        IMP_header=IMP_header, mat=True)
             if self.Z is not None:
                 Z = scipy.sparse.csc_matrix(self.Z.fillna(0))
                 G_pro = scipy.sparse.csc_matrix(self.G_pro.fillna(0))
@@ -3030,6 +3054,20 @@ class Ecospold2Matrix(object):
         self.log.warning("These uncharacterized flows include {} "
                          "substances, see {}".format(unchar_subst.shape[0],
                                                      filename))
+
+        # Gett unmatcheds substances sans land-use issues
+        c.execute("""select count(*) from (
+                       select distinct s.substId, s.aName, s.cas, lo.unit
+                       from substances s, labels_out lo
+                       where s.substId=lo.substId
+                       and lo.id not in (select distinct flowId from obs2char)
+                       and s.aName not like 'occupation%'
+                       and s.aName not like 'transformation%'
+                       order by s.aName);
+                       """)
+        self.log.warning("Of these uncharacterized 'substances', {} are "
+                         " not land occupation or transformation.".format(
+                                c.fetchone()[0]))
 
 
     def generate_characterized_extensions(self):
