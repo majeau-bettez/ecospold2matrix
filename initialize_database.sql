@@ -122,9 +122,9 @@ comp        text        NOT NULL REFERENCES comp(compName),
 subcomp     text                 REFERENCES subcomp(subcompName),
 unit        text        NOT NULL,
 impactId    TEXT        NOT NULL     REFERENCES impacts,
-method      TEXT,
+method      TEXT	DEFAULT '--',
 factorValue double precision    not null,
-UNIQUE (substId, comp, subcomp, impactId,  method)
+UNIQUE (substId, comp, subcomp, unit, impactId, method)
 );
 
 DROP TABLE IF EXISTS labels_ecoinvent;

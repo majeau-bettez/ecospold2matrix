@@ -2179,7 +2179,7 @@ class Ecospold2Matrix(object):
             unit=trim(unit);
 
             update {t} set subcomp='unspecified'
-            where subcomp is null or subcomp='(unspecified)';
+            where subcomp is null or subcomp='(unspecified)' or subcomp='';
 
             update {t} set subcomp='low population density'
             where subcomp='low. pop.';
@@ -2188,16 +2188,18 @@ class Ecospold2Matrix(object):
             where subcomp='high. pop.';
 
             update {t} set comp='resource' where comp='raw';
+            update {t} set comp='resource' where comp='natural resource';
             update {t} set unit='m3' where unit='Nm3';
 
             """.format(t=table))
 
         try:
-            c.executescript( """
+            c.executescript("""
                 update {t} set impactId=replace(impactId,')','');
                 update {t} set impactId=replace(impactid,'(','_');
                 """.format(t=table))
         except sqlite3.OperationalError:
+            # Not every label has a impactId column...
             pass
 
         # NULLIFY SOME COLUMNS IF ARGUMENTS OF LENGTH ZERO
@@ -2214,7 +2216,7 @@ class Ecospold2Matrix(object):
 
         # DEFINE  TAGS BASED ON NAMES
         for tag in ('fossil', 'total', 'organic bound',
-                'non-fossil', 'as N', 'land transformation'):
+                    'non-fossil', 'as N', 'land transformation'):
             for name in name_cols:
                 c.execute(""" update {t} set tag='{ta}'
                               where ({n} like '%, {ta}');
@@ -2344,13 +2346,6 @@ class Ecospold2Matrix(object):
 
         c = self.conn.cursor()
 
-        # def xlsrange(wb, sheetname, rangename):
-        #     ws = wb.sheet_by_name(sheetname)
-        #     ix = xlwt.Utils.cellrange_to_rowcol_pair(rangename)
-        #     values = []
-        #     for i in range(ix[0],ix[2]+1):
-        #         values.append(ws.row_values(i, ix[1], ix[3]+1))
-        #     return values
 
         # sheet reading parameters
         hardcoded = [
@@ -2380,14 +2375,16 @@ class Ecospold2Matrix(object):
             print("reading for impacts")
             self.log.info("Careful, make sure you shift headers to the right by"
                     " 1 column in FDP sheet of ReCiPe111.xlsx")
-            self.log.warning("Careful, Chromium VI values for TP should be "
-                    "copy-pasted from Chromium III values on the same sheet.")
             wb = xlrd.open_workbook('ReCiPe111.xlsx')
             imp =[]
             for i in range(len(hardcoded)):
                 sheet = hardcoded[i]
                 imp = imp + xlsrange(wb, sheet['name'], sheet['midpoint'])
 
+            imp = pd.DataFrame(columns=['perspective','unit', 'impactId'],
+                                  data=imp)
+            imp.impactId = imp.impactId.str.replace('(', '_')
+            imp.impactId = imp.impactId.str.replace(')', '')
 
             # GET ALL CHARACTERISATION FACTORS
             raw_recipe = pd.DataFrame()
@@ -2410,34 +2407,30 @@ class Ecospold2Matrix(object):
 
                 # concatenate
                 try:
-                    raw_recipe = pd.concat([raw_recipe, foo],
-                                            axis=0,
-                                            join='outer')
+                    raw_recipe = pd.concat([raw_recipe, foo], axis=0, join='outer')
                 except NameError:
                     raw_recipe = foo.copy()
                 except:
                     self.log.warning("Problem with concat")
 
+            # Pickle raw_recipe as read
             self.log.info("Done with concatenating")
             with open(filename+'.pickle', 'wb') as f:
                 pickle.dump([imp, raw_recipe], f)
 
-
         # Define numerical index
-
         raw_recipe.reset_index(inplace=True)
 
-        c.executemany('''insert or ignore into
-                                impacts(perspective, unit, impactId)
-                         values(?,?,?)''', imp)
-        c.execute('''update impacts set impactId=replace(impactid,')','');''')
-        c.execute('''update impacts set impactId=replace(impactid,'(','_');''')
-        self.conn.commit()
+        # insert impacts to SQL
+        imp.to_sql('tmp', self.conn, if_exists='replace', index=False)
+        c.execute("""insert or ignore into impacts(
+                            perspective, unit, impactId)
+                    select perspective, unit, impactId
+                    from tmp;""")
 
-
+        # insert raw_recipe to SQL
         raw_recipe.to_sql('tmp', self.conn, if_exists='replace', index=False)
-
-        c.execute( """
+        c.execute("""
         insert into raw_recipe(
                 comp, subcomp, name, name2, cas, unit, impactId, factorValue)
         select distinct comp, subcomp, recipeName, simaproName, cas,
@@ -2445,16 +2438,22 @@ class Ecospold2Matrix(object):
         from tmp;
         """)
 
-        # RECIPE SPECIFIC Pre-CLEAN UP
+        # RECIPE-SPECIFIC Pre-CLEAN UP
 
         # add Chromium VI back, since it did NOT get read in the spreadsheet
         # (Error512 in the spreadsheet)
         c.executescript("""
         create temporary table tmp_cr as select * from raw_recipe
                                          where cas='7440-47-3';
-        update tmp_cr set id = NULL, name='Chromium VI', name2='Chromium VI';
+        update tmp_cr set id = NULL,
+                          name='Chromium VI',
+                          name2='Chromium VI',
+                          cas='18540-29-9';
         insert into raw_recipe select * from tmp_cr;
         """)
+        self.log.info(
+                "Fixed the NaN values for chromium VI in ReCiPe spreadsheet,"
+                " assumed to have same toxicity impacts as chromium III.")
 
         # Force copper in water to be ionic (cas gets changed as part of normal
         # clean_label())
@@ -2474,11 +2473,11 @@ class Ecospold2Matrix(object):
         # COMPARTMENT SPECIFIC FIXES,
         # i.e., ions out of water in char, or neutral in water in inventory
         c.execute("""
-                UPDATE {t}
+                UPDATE raw_recipe
                  SET cas='16065-83-1', name='Chromium III', name2='Chromium III'
                  WHERE cas='7440-47-3' AND comp='water' AND
                  (name LIKE 'chromium iii' OR name2 LIKE 'chromium iii')
-                  """.format(t=table))
+                  """)
         if c.rowcount:
             self.log.info("Changed CAS changed one of the two names of {}"
                 " emissions of chromium III to water. Removes internal ambiguity"
@@ -2492,18 +2491,15 @@ class Ecospold2Matrix(object):
                   (name like 'chromium' or name2 like 'chromium')
                   """)
 
-        # add Ni0 in groundwater, because exists in ecoinvent
+        # add separate neutral Ni in groundwater, because exists in ecoinvent
         c.executescript("""
         create temporary table tmp_ni as select * from raw_recipe
                                          where cas='14701-22-5' and
                                          subcomp='river';
         update tmp_ni set id = NULL, name='Nickel', name2='Nickel',
         cas='7440-02-0';
-        insert into raw_recipe select * from tmp_cr;
+        insert into raw_recipe select * from tmp_ni;
         """)
-
-        # ReCiPe-specific clean up:
-        IPython.embed()
 
         self.conn.commit()
 
@@ -2689,6 +2685,7 @@ class Ecospold2Matrix(object):
         self.conn.commit()
 
     def _update_labels_from_names(self, tables=('raw_ecoinvent', 'raw_recipe')):
+        """ Update Substance ID in labels based on name matching"""
 
         for table in tables:
             self.conn.executescript(
@@ -2697,7 +2694,7 @@ class Ecospold2Matrix(object):
             SET substid=(
                     SELECT n.substid
                     FROM names as n
-                    WHERE ({t}.name=n.name or {t}.name2=n.name)
+                    WHERE ({t}.name like n.name or {t}.name2 like n.name)
                     AND {t}.tag IS n.tag
                     )
             WHERE {t}.substid IS NULL
@@ -2707,6 +2704,8 @@ class Ecospold2Matrix(object):
         self.conn.commit()
 
     def _insert_names_from_labels(self, tables=('raw_ecoinvent, raw_recipe')):
+
+        #TODO: make function of parameter
 
         self.conn.executescript("""
         INSERT OR IGNORE INTO names (name, tag, substid)
@@ -2850,12 +2849,16 @@ class Ecospold2Matrix(object):
                 t_out = 'labels_ecoinvent'
             else:
                 t_out = 'labels_char'
-                c.execute(
+                self.conn.commit()
+
+                c.execute(# don't was "or ignore" here, critical that it should
+                          # fail if same subst/comp/subcomp/unit were to have
+                          # multiple factorValues
                 """
                     insert into factors(
-                        substId, comp, subcomp, unit, impactId, factorValue)
+                        substId, comp, subcomp, unit, impactId, factorValue, method)
                     select distinct
-                        substId, comp, subcomp, unit, impactId, factorValue
+                        substId, comp, subcomp, unit, impactId, factorValue, '{t}'
                     from {t};
                 """.format(t=table)
                 )
@@ -2866,13 +2869,7 @@ class Ecospold2Matrix(object):
             SELECT DISTINCT
                 id, substId, name, name2, tag, comp, subcomp, cas, unit
             FROM {t};
-
-            -- DROP TABLE IF EXISTS {t}
             """.format(t=table, to=t_out))
-
-
-
-
 
         self.conn.commit()
 
@@ -2893,69 +2890,22 @@ class Ecospold2Matrix(object):
         from labels_ecoinvent;
         """)
 
-        # Add all characterized flows not covered in labels_out
-        # (use a temporary table for computational speed)
-        c.executescript(
-        """
-            DROP TABLE IF EXISTS labels_tmp;
-            CREATE temporary TABLE labels_tmp(
-            id          INTEGER NOT NULL PRIMARY KEY,
-            substId     INTEGER,
-            name        TEXT    ,
-            tag         TEXT    DEFAULT NULL,
-            comp        TEXT    ,
-            subcomp     TEXT    ,
-            formula     TEXT    ,
-            unit        TEXT    ,
-            cas         text    ,
-            dsid        text,
-            name2       TEXT,
-            ardaid      integer,
-            characterized   boolean default null, 
-            unique(substid, comp, subcomp, unit)
-            );
-        """)
-
-
         c.execute("""
-        insert or ignore into labels_tmp(
-                dsid, substId, comp, subcomp,name, name2, cas, tag, unit)
+        insert into labels_out(
+            substid, comp, subcomp, name, name2, cas, tag, unit)
         select distinct
-                dsid, substId, comp, subcomp,name, name2, cas, tag, unit
-        from labels_out;
+            lc.substid, lc.comp, lc.subcomp, lc.name, lc.name2, lc.cas,
+            lc.tag, lc.unit
+        from labels_char lc
+        where not exists(select 1 from labels_out lo
+                         where lo.substid=lc.substid
+                         and lo.comp = lc.comp
+                         and lo.subcomp = lc.subcomp
+                         and lo.unit = lc.unit)
         """)
 
-        # insert all flows from labels_char that do not overlap with ecoinvent
-        #-- if overlap, ignored
-
-        c.execute("""
-        insert or ignore into labels_tmp(
-                substId, comp, subcomp,name, name2, cas, tag, unit)
-        select distinct lc.substId,
-                        lc.comp,
-                        lc.subcomp,
-                        lc.name,
-                        lc.name2,
-                        lc.cas,
-                        lc.tag,
-                        lc.unit
-        from labels_char as lc;
-        """)
-
-        #-- get this all finally into labels_out
-        c.execute("""
-        insert or ignore into labels_out(
-                substId, comp, subcomp,name, name2, cas, tag, unit)
-        select distinct lt.substId,
-                        lt.comp,
-                        lt.subcomp,
-                        lt.name,
-                        lt.name2,
-                        lt.cas,
-                        lt.tag,
-                        lt.unit
-        from labels_tmp as lt;
-        """)
+        # TODO: improve labels_out, minimum data, then left join for cas,
+        # ardaid, name2, etc.
 
         sql_command = """
         update labels_out
@@ -2991,20 +2941,7 @@ class Ecospold2Matrix(object):
         self.log.info("Matched {} flows and factors, with exact subcomp"
                       " matching".format(c.rowcount))
 
-#        SELECT distinct lo.id, f.impactId, count(*)
-#        FROM labels_out lo, factors f
-#        WHERE
-#            lo.substId = f.substId AND
-#            lo.comp = f.comp AND
-#            lo.subcomp = f.subcomp AND
-#            lo.unit = f.unit
-#        group by lo.id, f.impactId
-#        having count(*)>1;
-#
-
-
-
-        # second insert for subcomp undefined
+        # second insert for subcomp 'undefined'
         c.execute(
         """
         INSERT or ignore INTO obs2char(
@@ -3019,7 +2956,8 @@ class Ecospold2Matrix(object):
             lo.subcomp = ocs.obs_sc AND ocs.char_sc = f.subcomp AND
             lo.unit = f.unit;
         """)
-        self.log.info("Matched {} flows and factors, with approximate subcomp matching".format(c.rowcount))
+        self.log.info("Matched {} flows and factors, with approximate subcomp"
+                      " matching".format(c.rowcount))
 
         # third insert for subcomp fallback
         c.execute(
@@ -3037,7 +2975,22 @@ class Ecospold2Matrix(object):
             lo.unit = f.unit;
         """)
         self.log.info("Matched {} flows and factors, by falling back to a "
-                "default subcompartment".format(c.rowcount))
+                      "default subcompartment".format(c.rowcount))
+
+        print("TEST NON-DUPLICATES, PEPARE UNMATCHED REPORT")
+        IPython.embed()
+        sql_command="""
+                       SELECT DISTINCT substId, name, cas, unit
+                       FROM labels_out lo
+                       WHERE lo.id NOT IN (SELECT DISTINCT flowId
+                                           FROM obs2char)
+                       order by name;
+                    """
+        unchar_subst=pd.read_sql(sql_command, self.conn)
+        unchar_subst.to_csv(
+                os.path.join(self.log_dir,'uncharacterized_substances.csv'),
+                sep='|')
+
 
     def generate_characterized_extensions(self):
 
@@ -3057,6 +3010,11 @@ class Ecospold2Matrix(object):
                            index='impactId').reindex_axis(self.STR.index, 1)
         self.C = self.C.reindex_axis(self.IMP.impactId.values, 0).fillna(0)
 
+    def make_compatible_with_arda(self):
+
+
+        # integrate ardaId here, for both stressors and processes
+
         # complement STR with new ArdaID
         anId = self.STR_old.ardaid.max()
         for i, row in self.STR.iterrows():
@@ -3064,9 +3022,12 @@ class Ecospold2Matrix(object):
                 anId +=1
                 self.STR.ardaid[i] = anId
 
+        # Do the same with IMP
+
         # Reindex based on ardaId
         self.STR.index = np.array(self.STR.ix[:, 'ardaid'].values, dtype=int)
         self.C.columns = self.STR.index.copy()
+            # todo: do the same with imp
 
         Forg = self.F.fillna(0)
         self.F = self.F.reindex_axis(self.STR.ix[:, 'dsid'].values, 0).fillna(0)
