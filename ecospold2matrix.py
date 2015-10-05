@@ -208,8 +208,9 @@ class Ecospold2Matrix(object):
             os.makedirs(self.out_dir)
         self.log_dir = os.path.join(self.out_dir, self.project_name + '_log')
 
-        if not os.path.exists(self.log_dir):
-            os.makedirs(self.log_dir)
+        # Fresh new log
+        os.system('rm -Rf ' + self.log_dir)
+        os.makedirs(self.log_dir)
 
         # MORE HARDCODED PARAMETERS
 
@@ -398,6 +399,7 @@ class Ecospold2Matrix(object):
                       ', '.join([i for i in self.STR_order]))
 
         database_name = self.project_name + '_' + self.__DB_CHARACTERISATION
+        os.system('rm ' + database_name)
         try:
             self.conn = sqlite3.connect(self.project_name + '_' + self.__DB_CHARACTERISATION)
             self.initialize_database()
@@ -2261,8 +2263,7 @@ class Ecospold2Matrix(object):
                         """.format(t=table))
 
         # DEFINE  TAGS BASED ON NAMES
-        for tag in ('fossil', 'total', 'organic bound',
-                    'non-fossil', 'as N', 'land transformation'):
+        for tag in ('total', 'organic bound', 'fossil', 'non-fossil', 'as N'):
             for name in name_cols:
                 c.execute(""" update {t} set tag='{ta}'
                               where ({n} like '%, {ta}');
@@ -2713,7 +2714,7 @@ class Ecospold2Matrix(object):
     def characterize_flows(self, tables=('raw_ecoinvent', 'raw_recipe')):
         self._integrate_flows_withCAS(tables)
         self._integrate_flows_withoutCAS(tables)
-        self._finalize_labels(tables)
+        self._finalize_labels_and_factors(tables)
         if self.STR_old is not None:
             self._integrate_old_labels()
         self._characterisation_matching()
@@ -2838,7 +2839,7 @@ class Ecospold2Matrix(object):
         self.conn.commit()
 
 
-    def _finalize_labels(self, tables=('raw_recipe', 'raw_ecoinvent')):
+    def _finalize_labels_and_factors(self, tables=('raw_recipe', 'raw_ecoinvent')):
         c = self.conn.cursor()
         c.executescript(
         """
@@ -2886,11 +2887,11 @@ class Ecospold2Matrix(object):
                 t_out = 'labels_char'
                 self.conn.commit()
 
-                c.execute(# don't was "or ignore" here, critical that it should
-                          # fail if same subst/comp/subcomp/unit were to have
-                          # multiple factorValues
+                c.execute(# only loose constraint on table, the better to
+                          # identify uniqueness conflicts and log problems in a
+                          # few lines (as soon as for-loop is over)
                 """
-                    insert into factors(
+                    insert or ignore into factors(
                         substId, comp, subcomp, unit, impactId, factorValue, method)
                     select distinct
                         substId, comp, subcomp, unit, impactId, factorValue, '{t}'
@@ -2905,6 +2906,32 @@ class Ecospold2Matrix(object):
                 id, substId, name, name2, tag, comp, subcomp, cas, unit
             FROM {t};
             """.format(t=table, to=t_out))
+
+        # Identify conflicting characterisation factors
+        sql_command = """ select distinct
+                                f1.substid,
+                                s.aName,
+                                f1.comp,
+                                f1.subcomp,
+                                f1.unit,
+                                f1.impactId,
+                                f1.method,
+                                f1.factorValue,
+                                f2.factorValue
+                          from factors f1, factors f2, substances s
+                          where
+                              f1.substId=f2.substId and f1.substId=s.substId
+                              and f1.comp=f2.comp
+                              and f1.subcomp = f2.subcomp
+                              and f1.unit = f2.unit
+                              and f1.impactId = f2.impactId
+                              and f1.method = f2.method
+                              and f1.factorValue <> f2.factorValue; """
+        factor_conflicts = pd.read_sql(sql_command, self.conn)
+        for i, row in factor_conflicts.iterrows():
+            self.log.warning("FAIL! Different characterization factor "
+                             "values for same flow-impact pair? Conflict:")
+            self.log.warning(row.values)
 
         self.conn.commit()
 

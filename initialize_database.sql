@@ -124,7 +124,11 @@ unit        text        NOT NULL,
 impactId    TEXT        NOT NULL     REFERENCES impacts,
 method      TEXT	DEFAULT '--',
 factorValue double precision    not null,
-UNIQUE (substId, comp, subcomp, unit, impactId, method)
+UNIQUE (substId, comp, subcomp, unit, impactId, method, factorValue)
+-- STRICTER:
+-- UNIQUE (substId, comp, subcomp, unit, impactId, method)
+-- The unique constraint makes sense, but remove and check manually to facilitate
+-- 	logging and idenfying source of conflict
 );
 
 DROP TABLE IF EXISTS labels_ecoinvent;
