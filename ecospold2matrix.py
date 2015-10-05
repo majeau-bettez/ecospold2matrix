@@ -233,7 +233,7 @@ class Ecospold2Matrix(object):
                 columns=["comp", "fallbacksubcomp"],
                 data=[[ 'water','river'],
                       [ 'soil', 'industrial'],
-                      [ 'air', 'high population density']
+                      [ 'air', 'low population density']
                       ])
 
         self._header_harmonizing_dict = {
@@ -2214,28 +2214,6 @@ class Ecospold2Matrix(object):
                           where {c} like '%, biogenic%'
                           """.format(t=table, c=col))
 
-        # DEFINE  TAGS BASED ON NAMES
-        for tag in ('fossil', 'total', 'organic bound',
-                    'non-fossil', 'as N', 'land transformation'):
-            for name in name_cols:
-                c.execute(""" update {t} set tag='{ta}'
-                              where ({n} like '%, {ta}');
-                          """.format(t=table, ta=tag, n=scrub(name)))
-
-        # Define more tags
-        c.executescript("""
-                        update {t} set tag='mix'
-                        where name like '% compounds'
-                        or name2 like '% compounds';
-
-                        update {t} set tag='alpha radiation' 
-                        where (name like '%alpha%' or name2 like '%alpha%')
-                        and unit='kbq';
-
-                        update {t} set tag='in ore'
-                        where subcomp like '%in ground';
-                        """.format(t=table))
-
         # Clean up names
         c.executescript("""
                         update {t}
@@ -2256,6 +2234,36 @@ class Ecospold2Matrix(object):
                         where name like '%/m3';
 
                         """.format(t=table))
+
+        # DEFINE  TAGS BASED ON NAMES
+        for tag in ('fossil', 'total', 'organic bound',
+                    'non-fossil', 'as N', 'land transformation'):
+            for name in name_cols:
+                c.execute(""" update {t} set tag='{ta}'
+                              where ({n} like '%, {ta}');
+                          """.format(t=table, ta=tag, n=scrub(name)))
+
+        self.conn.commit()
+        # Define more tags
+        c.execute("""
+                        update {t} set tag='mix'
+                        where name like '% compounds'
+                        or name2 like '% compounds';
+                  """.format(t=table))
+
+        c.execute("""
+                        update {t} set tag='alpha radiation' 
+                        where (name like '%alpha%' or name2 like '%alpha%')
+                        and unit='kbq';
+                  """.format(t=table))
+        c.execute("""
+                        update {t}
+                        set tag='in ore'
+                        where comp='resource'
+                        AND (subcomp like '%in ground'
+                             or name like '% ore'
+                             or name2 like '% ore');
+                  """.format(t=table))
 
         # Different types of "water", treat by name, not cas:
         c.execute("""update {t} set cas=NULL
@@ -2302,6 +2310,8 @@ class Ecospold2Matrix(object):
             if c.rowcount:
                 msg="Substituted CAS {} by {} for {} because {}"
                 self.log.info(msg.format( org_cas, row.cas, aName, row.comment))
+
+        self.conn.commit()
 
 
 
@@ -2941,7 +2951,7 @@ class Ecospold2Matrix(object):
         self.log.info("Matched {} flows and factors, with exact subcomp"
                       " matching".format(c.rowcount))
 
-        # second insert for subcomp 'undefined'
+        # second insert for approximate subcomp
         c.execute(
         """
         INSERT or ignore INTO obs2char(
@@ -2959,7 +2969,25 @@ class Ecospold2Matrix(object):
         self.log.info("Matched {} flows and factors, with approximate subcomp"
                       " matching".format(c.rowcount))
 
-        # third insert for subcomp fallback
+        # second insert for subcomp 'unspecified'
+        c.execute(
+        """
+        INSERT or ignore INTO obs2char(
+            flowId, impactId, factorId, factorValue, scheme)
+        SELECT DISTINCT
+            lo.id, f.impactId, f.factorId, f.factorValue, 'ReCiPe111'
+        FROM
+            labels_out lo, factors f, obs2char_subcomps ocs
+        WHERE
+            lo.substId = f.substId AND
+            lo.comp = f.comp AND
+            f.subcomp = 'unspecified' AND
+            lo.unit = f.unit;
+        """)
+        self.log.info("Matched {} flows and factors, with 'unspecified' subcomp"
+                      " matching".format(c.rowcount))
+
+        # fourth insert for subcomp fallback
         c.execute(
         """
         INSERT or ignore INTO obs2char(
@@ -2977,19 +3005,30 @@ class Ecospold2Matrix(object):
         self.log.info("Matched {} flows and factors, by falling back to a "
                       "default subcompartment".format(c.rowcount))
 
-        print("TEST NON-DUPLICATES, PEPARE UNMATCHED REPORT")
-        IPython.embed()
-        sql_command="""
-                       SELECT DISTINCT substId, name, cas, unit
+        sql_command="""SELECT DISTINCT *
                        FROM labels_out lo
                        WHERE lo.id NOT IN (SELECT DISTINCT flowId
                                            FROM obs2char)
-                       order by name;
-                    """
+                       order by name;"""
+        unchar_flow=pd.read_sql(sql_command, self.conn)
+        filename = os.path.join(self.log_dir,'uncharacterized_flows.csv')
+        unchar_flow.to_csv(filename, sep='|')
+        self.log.warning("This leaves {} flows uncharacterized, see {}".format(
+                            unchar_flow.shape[0], filename))
+
+        sql_command="""select distinct s.substId, s.aName, s.cas, lo.unit
+                       from substances s, labels_out lo
+                       where s.substId=lo.substId
+                       and lo.id not in (select distinct flowId from obs2char)
+                       order by s.aName;
+                       """
         unchar_subst=pd.read_sql(sql_command, self.conn)
-        unchar_subst.to_csv(
-                os.path.join(self.log_dir,'uncharacterized_substances.csv'),
-                sep='|')
+        filename=os.path.join(self.log_dir,'uncharacterized_subst.csv')
+        unchar_subst.to_csv(filename , sep='|')
+
+        self.log.warning("These uncharacterized flows include {} "
+                         "substances, see {}".format(unchar_subst.shape[0],
+                                                     filename))
 
 
     def generate_characterized_extensions(self):
