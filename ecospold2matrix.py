@@ -484,6 +484,7 @@ class Ecospold2Matrix(object):
         self.read_characterisation()
         self.populate_complementary_tables()
         self.characterize_flows()
+        self.generate_characterized_extensions()
 
         # Save system to file
         self.save_system(fileformats)
