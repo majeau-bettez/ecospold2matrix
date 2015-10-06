@@ -3068,10 +3068,15 @@ class Ecospold2Matrix(object):
         self.log.warning("This leaves {} flows uncharacterized, see {}".format(
                             unchar_flow.shape[0], filename))
 
-        sql_command="""select distinct s.substId, s.aName, s.cas, lo.unit
-                       from substances s, labels_out lo
-                       where s.substId=lo.substId
-                       and lo.id not in (select distinct flowId from obs2char)
+        sql_command="""
+                       select distinct s.substId, s.aName, s.cas, s.tag
+                       from substances s
+                       where s.substId not in (
+                            select distinct lo.substid
+                            from labels_out lo
+                            where lo.id in (select distinct flowId
+                                            from obs2char)
+                            )
                        order by s.aName;
                        """
         unchar_subst=pd.read_sql(sql_command, self.conn)
@@ -3083,14 +3088,19 @@ class Ecospold2Matrix(object):
                                                      filename))
 
         # Gett unmatcheds substances sans land-use issues
-        c.execute("""select count(*) from (
-                       select distinct s.substId, s.aName, s.cas, lo.unit
-                       from substances s, labels_out lo
-                       where s.substId=lo.substId
-                       and lo.id not in (select distinct flowId from obs2char)
-                       and s.aName not like 'occupation%'
-                       and s.aName not like 'transformation%'
-                       order by s.aName);
+        c.execute("""
+                     select count(*) from (
+                       select distinct s.substId, s.aName, s.cas, s.tag
+                       from substances s
+                       where s.substId not in (
+                            select distinct lo.substid
+                            from labels_out lo
+                            where lo.id in (select distinct flowId
+                                            from obs2char)
+                            )
+                        and s.aName not like 'transformation%'
+                        and s.aName not like 'occupation%'
+                        );
                        """)
         self.log.warning("Of these uncharacterized 'substances', {} are "
                          " not land occupation or transformation.".format(
