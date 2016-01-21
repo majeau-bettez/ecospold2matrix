@@ -82,7 +82,7 @@ class Ecospold2Matrix(object):
                  positive_waste=False, prefer_pickles=False, nan2null=False,
                  save_interm=True, PRO_order=['ISIC', 'activityName'],
                  STR_order=['comp', 'name', 'subcomp'],
-                 verbose=True):
+                 verbose=True, version_name='ecoinvent31'):
 
         """ Defining an ecospold2matrix object, with key parameters that
         determine how the data will be processes.
@@ -123,6 +123,7 @@ class Ecospold2Matrix(object):
                      flows) in the different matrices.
                      [Default: first sort by order of compartment,
                                subcompartment and then by name]
+
 
 
         Main functions and worflow:
@@ -194,6 +195,11 @@ class Ecospold2Matrix(object):
             self.lci_dir = os.path.abspath(lci_dir)
         else:
             self.lci_dir = lci_dir
+        self.version_name = version_name
+
+        self.char_method = None # characterisation method set by
+                                # read_characterisation function
+        self.data_version = None
 
         # PROJECT-WIDE OPTIONS
         self.positive_waste = positive_waste
@@ -411,7 +417,8 @@ class Ecospold2Matrix(object):
     # =========================================================================
     # MAIN FUNCTIONS
     def ecospold_to_Leontief(self, fileformats=None, with_absolute_flows=False,
-                             lci_check=False, rtol=1e-2, atol=1e-5, imax=3):
+                             lci_check=False, rtol=1e-2, atol=1e-5, imax=3,
+                             characterisation_file=None):
         """ Recasts an full ecospold dataset into normalized symmetric matrices
 
         Args:
@@ -439,6 +446,10 @@ class Ecospold2Matrix(object):
 
         * atol : Initial (max) absolute tolerance for comparing E with
                  calculated E
+
+        * characterisation_file: name of file containing characterisation
+                                 factors
+
 
         Generates:
         ----------
@@ -481,12 +492,13 @@ class Ecospold2Matrix(object):
         if with_absolute_flows:
             self.scale_up_AF()
 
-        print("starting characterisation")
-        self.process_ecoinvent_elementary_flows()
-        self.read_characterisation()
-        self.populate_complementary_tables()
-        self.characterize_flows()
-        self.generate_characterized_extensions()
+        if characterisation_file is not None:
+            print("starting characterisation")
+            self.process_ecoinvent_elementary_flows()
+            self.read_characterisation(characterisation_file)
+            self.populate_complementary_tables()
+            self.characterize_flows()
+            self.generate_characterized_extensions()
 
         # Save system to file
         self.save_system(fileformats)
@@ -2367,7 +2379,7 @@ class Ecospold2Matrix(object):
         self.clean_label('raw_ecoinvent')
         self.conn.commit()
 
-    def read_characterisation(self):
+    def read_characterisation(self, characterisation_file):
         """Input characterisation factor table (STR) to database and clean up
         """
 
@@ -2382,6 +2394,13 @@ class Ecospold2Matrix(object):
 
         c = self.conn.cursor()
 
+        # check whether an extraction method has been written for reading the
+        # characterisation factor file
+        if 'ReCiPe111' in characterisation_file:
+            self.char_method='ReCiPe111'
+        else:
+            self.log.error("No method defined to read characterisation factors"
+                    " from {}.  Aborting.".format(characterisation_file)
 
         # sheet reading parameters
         hardcoded = [
@@ -2402,16 +2421,15 @@ class Ecospold2Matrix(object):
                  ]
         headers = ['comp','subcomp','recipeName','simaproName','cas','unit']
 
-        filename='ReCiPe111'
-        if self.prefer_pickles and os.path.exists(filename +'.pickle'):
-            with open(filename+'.pickle', 'rb') as f:
+        if self.prefer_pickles and os.path.exists(self.char_method +'.pickle'):
+            with open(self.char_method+'.pickle', 'rb') as f:
                 [imp, raw_recipe] = pickle.load(f)
         else:
             # Get all impact categories directly from excel file
             print("reading for impacts")
             self.log.info("Careful, make sure you shift headers to the right by"
-                    " 1 column in FDP sheet of ReCiPe111.xlsx")
-            wb = xlrd.open_workbook('ReCiPe111.xlsx')
+                    " 1 column in FDP sheet of {}.xlsx".format(filename))
+            wb = xlrd.open_workbook(characterisation_file)
             imp =[]
             for i in range(len(hardcoded)):
                 sheet = hardcoded[i]
@@ -2426,7 +2444,7 @@ class Ecospold2Matrix(object):
             raw_recipe = pd.DataFrame()
             for i in range(len(hardcoded)):
                 sheet = hardcoded[i]
-                foo = pd.io.excel.read_excel('ReCiPe111.xlsx',
+                foo = pd.io.excel.read_excel(characterisation_file,
                                              sheet['name'],
                                              skiprows=range(sheet['rows']),
                                              parse_cols=sheet['range'])
@@ -2589,11 +2607,11 @@ class Ecospold2Matrix(object):
         """
         -- 2.1 Add Schemes
 
-        INSERT or ignore INTO schemes(NAME) SELECT 'ecoinvent31';
+        INSERT or ignore INTO schemes(NAME) SELECT '{}';
         INSERT OR IGNORE INTO schemes(NAME) SELECT 'simapro';
-        INSERT OR IGNORE INTO schemes(NAME) SELECT 'recipe111';
+        INSERT OR IGNORE INTO schemes(NAME) SELECT '{}';
 
-        """)
+        """.format(self.version_name, self.char_method))
 
 
 
@@ -2866,18 +2884,18 @@ class Ecospold2Matrix(object):
         INSERT INTO nameHasScheme
         SELECT DISTINCT n.nameId, s.schemeId from names n, schemes s
         WHERE n.name in (SELECT DISTINCT name FROM raw_ecoinvent)
-        and s.name='ecoinvent31';
+        and s.name='{}';
 
         insert into nameHasScheme
         select distinct n.nameId, s.schemeId from names n, schemes s
         where n.name in (select name from raw_recipe)
-        and s.name='recipe111';
+        and s.name='{}';
 
         insert into nameHasScheme
         select distinct n.nameId, s.schemeId from names n, schemes s
         where n.name in (select name2 from raw_recipe)
         and s.name='simapro';
-        """) # the very end
+        """.format(self.version_name, self.char_method)) # the very end
 #
         for i in range(len(tables)):
             table = scrub(tables[i])
@@ -2991,7 +3009,7 @@ class Ecospold2Matrix(object):
         INSERT INTO obs2char(
             flowId, impactId, factorId, factorValue, scheme)
         SELECT DISTINCT
-            lo.id, f.impactId, f.factorId, f.factorValue, 'ReCiPe111'
+            lo.id, f.impactId, f.factorId, f.factorValue, '{}'
         FROM
             labels_out lo, factors f
         WHERE
@@ -2999,7 +3017,7 @@ class Ecospold2Matrix(object):
             lo.comp = f.comp AND
             lo.subcomp = f.subcomp AND
             lo.unit = f.unit;
-        """)
+        """.format(self.char_method))
         self.log.info("Matched {} flows and factors, with exact subcomp"
                       " matching".format(c.rowcount))
 
@@ -3009,7 +3027,7 @@ class Ecospold2Matrix(object):
         INSERT or ignore INTO obs2char(
             flowId, impactId, factorId, factorValue, scheme)
         SELECT DISTINCT
-            lo.id, f.impactId, f.factorId, f.factorValue, 'ReCiPe111'
+            lo.id, f.impactId, f.factorId, f.factorValue, '{}'
         FROM
             labels_out lo, factors f, obs2char_subcomps ocs
         WHERE
@@ -3017,7 +3035,7 @@ class Ecospold2Matrix(object):
             lo.comp = f.comp AND
             lo.subcomp = ocs.obs_sc AND ocs.char_sc = f.subcomp AND
             lo.unit = f.unit;
-        """)
+        """.format(self.char_method))
         self.log.info("Matched {} flows and factors, with approximate subcomp"
                       " matching".format(c.rowcount))
 
@@ -3027,7 +3045,7 @@ class Ecospold2Matrix(object):
         INSERT or ignore INTO obs2char(
             flowId, impactId, factorId, factorValue, scheme)
         SELECT DISTINCT
-            lo.id, f.impactId, f.factorId, f.factorValue, 'ReCiPe111'
+            lo.id, f.impactId, f.factorId, f.factorValue, '{}'
         FROM
             labels_out lo, factors f, obs2char_subcomps ocs
         WHERE
@@ -3035,7 +3053,7 @@ class Ecospold2Matrix(object):
             lo.comp = f.comp AND
             f.subcomp = 'unspecified' AND
             lo.unit = f.unit;
-        """)
+        """.format(self.char_method))
         self.log.info("Matched {} flows and factors, with 'unspecified' subcomp"
                       " matching".format(c.rowcount))
 
@@ -3045,7 +3063,7 @@ class Ecospold2Matrix(object):
         INSERT or ignore INTO obs2char(
             flowId, dsid, impactId, factorId, factorValue, scheme)
         SELECT DISTINCT
-            lo.id, lo.dsid, f.impactId, f.factorId, f.factorValue, 'ReCiPe111'
+            lo.id, lo.dsid, f.impactId, f.factorId, f.factorValue, '{}'
         FROM
             labels_out lo, factors f, fallback_sc fsc
         WHERE
