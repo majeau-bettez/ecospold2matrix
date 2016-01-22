@@ -12,6 +12,8 @@ License: BDS
 Authors:
     Guillaume Majeau-Bettez
     Konstantin Stadler
+    Evert Bouman
+    Radek Lonka
 
 Credits:
     This module re-uses/adapts code from brightway2data, more specifically the
@@ -781,7 +783,7 @@ class Ecospold2Matrix(object):
                     'unitId': o.get('unitId')}
 
         # Parse XML file
-        with open(fp) as fh:
+        with open(fp, 'r', encoding="utf-8") as fh:
             root = objectify.parse(fh).getroot()
             pro_list = [extract_metadata(ds) for ds in root.iterchildren()]
 
@@ -1007,7 +1009,7 @@ class Ecospold2Matrix(object):
             }
 
         # Extract data from file
-        with open(fp) as fh:
+        with open(fp, 'r', encoding="utf-8") as fh:
             root = objectify.parse(fh).getroot()
             el_list = [extract_metadata(ds) for ds in root.iterchildren()]
 
@@ -2400,7 +2402,8 @@ class Ecospold2Matrix(object):
             self.char_method='ReCiPe111'
         else:
             self.log.error("No method defined to read characterisation factors"
-                    " from {}.  Aborting.".format(characterisation_file)
+                    " from {}.  Aborting.".format(characterisation_file))
+            #TODO: abort
 
         # sheet reading parameters
         hardcoded = [
