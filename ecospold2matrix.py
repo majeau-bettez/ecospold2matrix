@@ -2448,26 +2448,29 @@ class Ecospold2Matrix(object):
             raw_recipe = pd.DataFrame()
             for i in range(len(hardcoded)):
                 sheet = hardcoded[i]
-                foo = pd.io.excel.read_excel(characterisation_file,
+                j = pd.io.excel.read_excel(characterisation_file,
                                              sheet['name'],
                                              skiprows=range(sheet['rows']),
                                              parse_cols=sheet['range'])
 
 
                 # clean up a bit
-                foo.rename(columns=self._header_harmonizing_dict, inplace=True)
+                j.rename(columns=self._header_harmonizing_dict, inplace=True)
 
-                foo.cas = foo.cas.str.replace('^[0]*','')
-                foo.ix[:, headers] = foo.ix[:, headers].fillna('')
-                foo = foo.set_index(headers).stack(dropna=True).reset_index(-1)
-                foo.columns=['impactId','factorValue']
+                try:
+                    j.cas = j.cas.str.replace('^[0]*','')
+                except AttributeError:
+                    pass
+                j.ix[:, headers] = j.ix[:, headers].fillna('')
+                j = j.set_index(headers).stack(dropna=True).reset_index(-1)
+                j.columns=['impactId','factorValue']
 
 
                 # concatenate
                 try:
-                    raw_recipe = pd.concat([raw_recipe, foo], axis=0, join='outer')
+                    raw_recipe = pd.concat([raw_recipe, j], axis=0, join='outer')
                 except NameError:
-                    raw_recipe = foo.copy()
+                    raw_recipe = j.copy()
                 except:
                     self.log.warning("Problem with concat")
 
