@@ -54,6 +54,7 @@ import csv
 import shelve
 import hashlib
 import sqlite3
+import re
 import xlrd
 import xlwt
 import copy
@@ -2393,13 +2394,13 @@ class Ecospold2Matrix(object):
                 values.append(tuple(ws.col_values(i, ix[0], ix[2]+1)))
             return values
 
-
         c = self.conn.cursor()
 
         # check whether an extraction method has been written for reading the
         # characterisation factor file
         if 'ReCiPe111' in characterisation_file:
             self.char_method='ReCiPe111'
+            picklename = re.sub('xlsx*$', 'pickle', characterisation_file)
         else:
             self.log.error("No method defined to read characterisation factors"
                     " from {}.  Aborting.".format(characterisation_file))
@@ -2424,14 +2425,14 @@ class Ecospold2Matrix(object):
                  ]
         headers = ['comp','subcomp','recipeName','simaproName','cas','unit']
 
-        if self.prefer_pickles and os.path.exists(self.char_method +'.pickle'):
-            with open(self.char_method+'.pickle', 'rb') as f:
+        if self.prefer_pickles and os.path.exists(picklename):
+            with open(picklename, 'rb') as f:
                 [imp, raw_recipe] = pickle.load(f)
         else:
             # Get all impact categories directly from excel file
             print("reading for impacts")
-            self.log.info("Careful, make sure you shift headers to the right by"
-                    " 1 column in FDP sheet of {}.xlsx".format(filename))
+            self.log.info("CAREFUL! Make sure you shift headers to the right by"
+                    " 1 column in FDP sheet of {}".format(characterisation_file))
             wb = xlrd.open_workbook(characterisation_file)
             imp =[]
             for i in range(len(hardcoded)):
@@ -2472,7 +2473,7 @@ class Ecospold2Matrix(object):
 
             # Pickle raw_recipe as read
             self.log.info("Done with concatenating")
-            with open(filename+'.pickle', 'wb') as f:
+            with open(picklename, 'wb') as f:
                 pickle.dump([imp, raw_recipe], f)
 
         # Define numerical index
