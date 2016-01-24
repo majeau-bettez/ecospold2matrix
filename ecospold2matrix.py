@@ -821,6 +821,7 @@ class Ecospold2Matrix(object):
         act_list = []
         for act in root:
             act_list.append([act.attrib['id'],
+                             act.attrib['activityNameId'],
                              act.attrib['specialActivityType'],
                              act.attrib['startDate'],
                              act.attrib['endDate']])
@@ -831,6 +832,7 @@ class Ecospold2Matrix(object):
         # Convert to dataFrame
         self.activities = pd.DataFrame(act_list,
                                        columns=('activityId',
+                                                'activityNameId',
                                                 'activityType',
                                                 'startDate',
                                                 'endDate'),
@@ -1164,6 +1166,14 @@ class Ecospold2Matrix(object):
         PRO['technologyLevel'] = PRO['technologyLevel'].astype(int)
         self.PRO = PRO.sort(columns=self.PRO_order)
 
+    def extract_oldlabels(self, old_dir, sep='|'):
+        """ Read in old PRO, STR and IMP labels csv-files from directory"""
+
+        # Read in STR
+        path = glob.glob(os.path.join(old_dir, '*STR*.csv'))[0]
+        self.STR_old = pd.read_csv(path, sep=sep)
+
+        # TODO: PRO and IMP
     # =========================================================================
     # CLEAN UP FUNCTIONS: if imperfections in ecospold data
     def __find_unsourced_flows(self):
@@ -3150,29 +3160,55 @@ class Ecospold2Matrix(object):
                            index='impactId').reindex_axis(self.STR.index, 1)
         self.C = self.C.reindex_axis(self.IMP.impactId.values, 0).fillna(0)
 
-    def make_compatible_with_arda(self):
 
 
-        # integrate ardaId here, for both stressors and processes
+    def make_compatible_with_arda(self, ardaidmatching_file):
 
-        # complement STR with new ArdaID
-        anId = self.STR_old.ardaid.max()
+
+
+        # As much as possible, assign PRO with old ArdaID, for backward
+        # compatibility
+        b = pd.merge(self.PRO,
+                 a,
+                 left_on=('activityNameId', 'productId', 'geography'),
+                 right_on=('uuidactivityname', 'uuidproductname', 'location')
+                 how='left',
+                 copy=True)
+        # Remove all merged rows except matrixid
+        self.PRO = b.drop(a_cols.remove('matrixid'), 1)
+
+        # complement PRO with new ArdaID
+        anId = a.matrixid.max() + 10
+        for i, row in self.PRO.iterrows():
+            if not row.ardaid > 0:
+                anId +=1
+                self.STR.ardaid[i] = anId
+
+        # old ArdaId already matched for STR, from <++>
+        # For new stressors, complement STR with new ArdaID
+        anId = self.STR_old.ardaid.max() + 10
         for i, row in self.STR.iterrows():
             if not row.ardaid > 0:
                 anId +=1
                 self.STR.ardaid[i] = anId
 
-        # Do the same with IMP
+        a = pd.read_csv(ardaidmatching_file)
+        a_cols = list(a.columns)
 
-        # Reindex based on ardaId
-        self.STR.index = np.array(self.STR.ix[:, 'ardaid'].values, dtype=int)
-        self.C.columns = self.STR.index.copy()
-            # todo: do the same with imp
+        # TODO: Do the same with IMP
 
+        ## Reindex based on ardaId 
+        #self.STR.index = np.array(self.STR.ix[:, 'ardaid'].values, dtype=int)
+        #self.C.columns = self.STR.index.copy()
+        #    # todo: do the same with imp
+
+        # Reorganize ecoinvent elementary flows to follow STR order
         Forg = self.F.fillna(0)
         self.F = self.F.reindex_axis(self.STR.ix[:, 'dsid'].values, 0).fillna(0)
         self.F.index = self.STR.index.copy()
+            # Note: the columns of C should already follow the right STR order
 
+        # safety assertions
         assert(np.allclose(self.F.values.sum(), Forg.values.sum()))
         assert((self.F.values > 0).sum() == (Forg.values > 0).sum())
 
