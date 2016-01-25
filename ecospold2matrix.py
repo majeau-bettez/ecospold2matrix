@@ -423,7 +423,8 @@ class Ecospold2Matrix(object):
     # MAIN FUNCTIONS
     def ecospold_to_Leontief(self, fileformats=None, with_absolute_flows=False,
                              lci_check=False, rtol=1e-2, atol=1e-5, imax=3,
-                             characterisation_file=None):
+                             characterisation_file=None,
+                             ardaidmatching_file=None):
         """ Recasts an full ecospold dataset into normalized symmetric matrices
 
         Args:
@@ -454,6 +455,10 @@ class Ecospold2Matrix(object):
 
         * characterisation_file: name of file containing characterisation
                                  factors
+
+        * ardaidmatching_file: name of file matching Arda Ids, Ecoinvent2 DSIDs
+                               and ecoinvent3 UUIDs. Only useful for the Arda
+                               project.
 
 
         Generates:
@@ -504,6 +509,9 @@ class Ecospold2Matrix(object):
             self.populate_complementary_tables()
             self.characterize_flows()
             self.generate_characterized_extensions()
+
+        if ardaidmatching_file:
+            self.make_compatible_with_arda(ardaidmatching_file)
 
         # Save system to file
         self.save_system(fileformats)
@@ -3175,29 +3183,63 @@ class Ecospold2Matrix(object):
                            index='impactId').reindex_axis(self.STR.index, 1)
         self.C = self.C.reindex_axis(self.IMP.impactId.values, 0).fillna(0)
 
+        # Reorganize elementary flows to follow STR order
+        Forg = self.F.fillna(0)
+        self.F = self.F.reindex_axis(self.STR.ix[:, 'dsid'].values, 0).fillna(0)
+        self.F.index = self.STR.index.copy()
+
+        # safety assertions
+        assert(np.allclose(self.F.values.sum(), Forg.values.sum()))
+        assert((self.F.values > 0).sum() == (Forg.values > 0).sum())
 
 
     def make_compatible_with_arda(self, ardaidmatching_file):
+        """ For backward compatibility, try to reuse ArdaIds from previous
+        version
+        
+        Args
+        ----
 
+        * ardaidmatching_file: CSV file matching ArdaID with ecoinvent2.2 DSID
+          and with version3 UUIDs
 
+        Dependencies:
+        -------------
+
+        * self.PRO_old, defined by extract_old_labels()
+        * self.IMP_old, defined by extract_old_labels()
+        * self.STR_ols, defined by extract_old_labels()
+
+        For Processes, ArdaIDs are matched using the matching file. For
+        elementary flows, the matching is already done from
+        _integrate_old_labels(). For impact categories, matching based on
+        acronyms. For processes, elementary flows and impacts without an Id,
+        one is serially defined.
+        
+        """
 
         # As much as possible, assign PRO with old ArdaID, for backward
-        # compatibility
+        # compatibility. For PRO, do it with official UUID-DSID matching
+        a = pd.read_csv(ardaidmatching_file)
+        a_cols = list(a.columns)
+        a_cols.remove('ardaid')
         b = pd.merge(self.PRO,
                  a,
                  left_on=('activityNameId', 'productId', 'geography'),
-                 right_on=('uuidactivityname', 'uuidproductname', 'location')
+                 right_on=('uuidactivityname', 'uuidproductname', 'location'),
                  how='left',
                  copy=True)
-        # Remove all merged rows except matrixid
-        self.PRO = b.drop(a_cols.remove('matrixid'), 1)
 
-        # complement PRO with new ArdaID
-        anId = a.matrixid.max() + 10
+        # Chech that merge has NOT added elements to the process list
+        assert(self.PRO.shape[0] == b.shape[0])
+        self.PRO = b.drop(a_cols, 1)
+
+        # For process with no legacy ArdaId, generate new ArdaID
+        anId = self.PRO_old.ardaid.max() + 10
         for i, row in self.PRO.iterrows():
             if not row.ardaid > 0:
                 anId +=1
-                self.STR.ardaid[i] = anId
+                self.PRO.ardaid[i] = anId
 
         # old ArdaId already matched for STR, from <++>
         # For new stressors, complement STR with new ArdaID
@@ -3207,27 +3249,19 @@ class Ecospold2Matrix(object):
                 anId +=1
                 self.STR.ardaid[i] = anId
 
-        a = pd.read_csv(ardaidmatching_file)
-        a_cols = list(a.columns)
+        # Match IMP ArdaID based on acronym
+        a = pd.merge(self.IMP, self.IMP_old[['ardaid','accronym']],
+                     left_on='impactId', right_on='accronym',
+                     how='left', copy=True)
+        assert(self.IMP.shape[0] == a.shape[0])
+        self.IMP = a.drop('accronym', 1)
 
-        # TODO: Do the same with IMP
-
-        ## Reindex based on ardaId 
-        #self.STR.index = np.array(self.STR.ix[:, 'ardaid'].values, dtype=int)
-        #self.C.columns = self.STR.index.copy()
-        #    # todo: do the same with imp
-
-        # Reorganize ecoinvent elementary flows to follow STR order
-        Forg = self.F.fillna(0)
-        self.F = self.F.reindex_axis(self.STR.ix[:, 'dsid'].values, 0).fillna(0)
-        self.F.index = self.STR.index.copy()
-            # Note: the columns of C should already follow the right STR order
-
-        # safety assertions
-        assert(np.allclose(self.F.values.sum(), Forg.values.sum()))
-        assert((self.F.values > 0).sum() == (Forg.values > 0).sum())
-
-
+        # For new impacts, complement IMP with new ArdaID
+        anId = self.IMP_old.ardaid.max() + 10
+        for i, row in self.IMP.iterrows():
+            if not row.ardaid > 0:
+                anId +=1
+                self.IMP.ardaid[i] = anId
 
 
     def _updatenull_log(self, sql_command, table, col,
