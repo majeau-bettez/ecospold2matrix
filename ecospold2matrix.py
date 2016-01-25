@@ -58,7 +58,6 @@ import re
 import xlrd
 import xlwt
 import copy
-import IPython
 # pylint: disable-msg=C0103
 
 
@@ -162,7 +161,10 @@ class Ecospold2Matrix(object):
         self.outflows = None            # intermediate-exchange output flows
         self.elementary_flows = None    # elementary flows
         self.q = None                   # total supply of each product
+
+        self.PRO_old=None
         self.STR_old = None
+        self.IMP_old=None
 
         # FINAL VARIABLES: SYMMETRIC SYSTEM, NORMALIZED AND UNNORMALIZED
         self.PRO = None             # Process labels, rows/cols of A-matrix
@@ -1166,14 +1168,27 @@ class Ecospold2Matrix(object):
         PRO['technologyLevel'] = PRO['technologyLevel'].astype(int)
         self.PRO = PRO.sort(columns=self.PRO_order)
 
-    def extract_oldlabels(self, old_dir, sep='|'):
-        """ Read in old PRO, STR and IMP labels csv-files from directory"""
+    def extract_old_labels(self, old_dir, sep='|'):
+        """ Read in old PRO, STR and IMP labels csv-files from directory
 
+
+        self.STR_old must be defined with:
+            * with THREE name columns called name, name2, name3
+            * cas, comp, subcomp, unit
+            * ardaid, i.e., the Id that we wish to re-use in the new dataset
+        """
         # Read in STR
         path = glob.glob(os.path.join(old_dir, '*STR*.csv'))[0]
         self.STR_old = pd.read_csv(path, sep=sep)
 
-        # TODO: PRO and IMP
+        # Read in PRO
+        path = glob.glob(os.path.join(old_dir, '*PRO*.csv'))[0]
+        self.PRO_old = pd.read_csv(path, sep=sep)
+
+        # Read in IMP
+        path = glob.glob(os.path.join(old_dir, '*IMP*.csv'))[0]
+        self.IMP_old = pd.read_csv(path, sep=sep)
+
     # =========================================================================
     # CLEAN UP FUNCTIONS: if imperfections in ecospold data
     def __find_unsourced_flows(self):
