@@ -2355,14 +2355,15 @@ class Ecospold2Matrix(object):
                         where (name like '%alpha%' or name2 like '%alpha%')
                         and unit='kbq';
                   """.format(t=table))
-        c.execute("""
-                        update {t}
-                        set tag='in ore'
-                        where comp='resource'
-                        AND (subcomp like '%in ground'
-                             or name like '% ore'
-                             or name2 like '% ore');
-                  """.format(t=table))
+        # TODO: confirm diable "in ore" tagging
+        #c.execute("""
+        #                update {t}
+        #                set tag='in ore'
+        #                where comp='resource'
+        #                AND (subcomp like '%in ground'
+        #                     or name like '% ore'
+        #                     or name2 like '% ore');
+        #          """.format(t=table))
 
         # Different types of "water", treat by name, not cas:
         c.execute("""update {t} set cas=NULL
@@ -2943,6 +2944,17 @@ class Ecospold2Matrix(object):
             if len(missed_flows):
                 self.log.warning("There are missed flows in "+table)
                 print(missed_flows)
+
+        c.executescript(
+        """
+        select * from Names as n1, Names as n2
+        where n1.name like n2.name||'s'
+        and n1.substid <> n2.substid;
+        """)
+        missed_plurals = c.fetchall()
+        if len(missed_plurals):
+            self.log.warning("Maybe missed name matching because of plurals")
+            print(missed_plurals)
 
 
         self.conn.executescript("""
