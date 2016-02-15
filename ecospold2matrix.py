@@ -38,7 +38,7 @@ Credits:
 
 
 """
-
+import IPython
 import os
 import glob
 import subprocess
@@ -433,9 +433,12 @@ class Ecospold2Matrix(object):
         * fileformats : List of file formats in which to save data
                         [Default: None, save to all possible file formats]
                          Options: 'Pandas'       --> pandas dataframes
+                                  'csv'          --> text with separator =  '|'
                                   'SparsePandas' --> sparse pandas dataframes
                                   'SparseMatrix' --> scipy AND matlab sparse
-                                  'csv'          --> text with separator =  '|'
+                                  'SparseMatrixForArda' --> with special
+                                                            background
+                                                            variable names
 
         * with_absolut_flow: If true, produce not only coefficient matrices (A
                              and F) but also scale them up to production
@@ -1922,9 +1925,12 @@ class Ecospold2Matrix(object):
                         [Default: None, save to all possible file formats]
 
                          Options: 'Pandas'       --> pandas dataframes
+                                  'csv'          --> text with separator =  '|'
                                   'SparsePandas' --> sparse pandas dataframes
                                   'SparseMatrix' --> scipy AND matlab sparse
-                                  'csv'          --> text with separator =  '|'
+                                  'SparseMatrixForArda' --> with special
+                                                            background
+                                                            variable names
 
         This method creates separate files for normalized, symmetric matrices
         (A, F), scaled-up symmetric metrices (Z, G_pro), and supply and use
@@ -1970,20 +1976,32 @@ class Ecospold2Matrix(object):
 
         def pickle_symm_norm(PRO=None, STR=None, IMP=None, A=None, F=None,
                 C=None, PRO_header=None, STR_header=None, IMP_header=None,
-                mat=False):
+                mat=False, for_arda_background=False):
             """ nested function that prepares dictionary for symmetric,
             normalized (coefficient) system description file """
-
-            adict = {'PRO': PRO,
-                     'STR': STR,
-                     'IMP': IMP,
-                     'A': A,
-                     'F': F,
-                     'C': C,
-                     'PRO_header': PRO_header,
-                     'STR_header': STR_header,
-                     'IMP_header': IMP_header
-                     }
+            
+            if not for_arda_background:
+                adict = {'PRO': PRO,
+                         'STR': STR,
+                         'IMP': IMP,
+                         'A': A,
+                         'F': F,
+                         'C': C,
+                         'PRO_header': PRO_header,
+                         'STR_header': STR_header,
+                         'IMP_header': IMP_header
+                         }
+            else:
+                adict = {'PRO_gen': PRO,
+                         'STR': STR,
+                         'IMP': IMP,
+                         'A_gen': A,
+                         'F_gen': F,
+                         'C': C,
+                         'PRO_header': PRO_header,
+                         'STR_header': STR_header,
+                         'IMP_header': IMP_header
+                         }
             pickling(file_pr + '_symmNorm', adict,
                      'Final, symmetric, normalized matrices', mat)
 
@@ -2051,15 +2069,21 @@ class Ecospold2Matrix(object):
                            self.STR,
                            U, V, V_prodVol, G_act)
 
-        # save as sparse Matrices (both pickled and mat-files)
+        # save as sparse Matrices (both pickled and mat-files)  
         format_name = 'SparseMatrix'
-        if file_formats is None or format_name in file_formats:
+        for_arda_background=False
+        if 'SparseMatrixForArda' in file_formats:
+            for_arda_background=True
+
+        if (file_formats is None
+                or format_name in file_formats
+                or for_arda_background):
 
             file_pr = os.path.join(self.out_dir,
                                    self.project_name + format_name)
-            PRO = self.PRO.reset_index().fillna('').values
-            STR = self.STR.reset_index().fillna('').values
-            IMP = self.IMP.reset_index().fillna('').values
+            PRO = self.PRO.fillna('').values
+            STR = self.STR.fillna('').values
+            IMP = self.IMP.fillna('').values
             PRO_header = self.PRO.columns.values
             PRO_header = PRO_header.reshape((1,len(PRO_header)))
             STR_header = self.STR.columns.values
@@ -2074,7 +2098,8 @@ class Ecospold2Matrix(object):
                 F = scipy.sparse.csc_matrix(self.F.fillna(0))
                 pickle_symm_norm(PRO=PRO, STR=STR, IMP=IMP, A=A, F=F, C=C,
                         PRO_header=PRO_header, STR_header=STR_header,
-                        IMP_header=IMP_header, mat=True)
+                        IMP_header=IMP_header, mat=True,
+                        for_arda_background=for_arda_background)
             if self.Z is not None:
                 Z = scipy.sparse.csc_matrix(self.Z.fillna(0))
                 G_pro = scipy.sparse.csc_matrix(self.G_pro.fillna(0))
@@ -3174,6 +3199,8 @@ class Ecospold2Matrix(object):
         self.IMP = pd.read_sql("""select * from impacts
                                   order by perspective, unit, impactId""",
                                self.conn)
+        self.IMP.set_index('impactId',drop=False,inplace=True)
+        self.IMP.index.name='index'
 
         # get table and pivot
         obs2char = pd.read_sql("select * from obs2char", self.conn)
@@ -3181,7 +3208,7 @@ class Ecospold2Matrix(object):
                            values='factorValue',
                            columns='flowId',
                            index='impactId').reindex_axis(self.STR.index, 1)
-        self.C = self.C.reindex_axis(self.IMP.impactId.values, 0).fillna(0)
+        self.C = self.C.reindex_axis(self.IMP.index, 0).fillna(0)
 
         # Reorganize elementary flows to follow STR order
         Forg = self.F.fillna(0)
@@ -3196,7 +3223,7 @@ class Ecospold2Matrix(object):
     def make_compatible_with_arda(self, ardaidmatching_file):
         """ For backward compatibility, try to reuse ArdaIds from previous
         version
-        
+
         Args
         ----
 
@@ -3218,50 +3245,102 @@ class Ecospold2Matrix(object):
         
         """
 
+        def complement_ardaid(label, old_label, column='ardaid',step=10):
+            """ Generate ArdaId for processes, stressors or impacts needing it
+            """
+            # Start above the maximum historical ID (+ step, for buffer)
+            anId = old_label.ardaid.max() + step
+
+            # Loop through all rows, fix NaN or Null ArdaIds
+            for i, row in label.iterrows():
+                if not row['ardaid'] > 0:
+                    anId +=1
+                    label.ix[i,'ardaid'] = anId
+            return label
+
+
+        def finalize_indexes(label, old_index, duplicate_cols):
+
+            # return to original indexes
+            label = label.set_index(old_index.name)
+
+            # make sure that indexes have not changed
+            assert(set(old_index) == set(label.index))
+
+            # Go back to original order
+            label = label.reindex(old_index)
+
+            # Remove columns leftover during the merge
+            label = label.drop(duplicate_cols, 1)
+            return label
+
+        def organize_labels(label, fullnamecols, firstcols, lastcols):
+            """ Ensure the columns in the right place for Arda to understand
+            * Fullname must be first column
+            * ArdaId must be second
+            * Unit must be last
+            """
+            for i in fullnamecols:
+                try:
+                    full = full + '/' + label[i]
+                except NameError:
+                    full = label[i]
+            full.name='fullname'
+            l = pd.concat([full,
+                           label[firstcols],
+                           label.drop(firstcols + lastcols, 1),
+                           label[lastcols]],
+                           axis=1)
+            return l
+
+
         # As much as possible, assign PRO with old ArdaID, for backward
         # compatibility. For PRO, do it with official UUID-DSID matching
         a = pd.read_csv(ardaidmatching_file)
         a_cols = list(a.columns)
         a_cols.remove('ardaid')
-        b = pd.merge(self.PRO,
+        b = pd.merge(self.PRO.reset_index(),
                  a,
                  left_on=('activityNameId', 'productId', 'geography'),
                  right_on=('uuidactivityname', 'uuidproductname', 'location'),
                  how='left',
                  copy=True)
-
-        # Chech that merge has NOT added elements to the process list
-        assert(self.PRO.shape[0] == b.shape[0])
-        self.PRO = b.drop(a_cols, 1)
-
-        # For process with no legacy ArdaId, generate new ArdaID
-        anId = self.PRO_old.ardaid.max() + 10
-        for i, row in self.PRO.iterrows():
-            if not row.ardaid > 0:
-                anId +=1
-                self.PRO.ardaid[i] = anId
+        b = finalize_indexes(b, self.PRO.index, duplicate_cols=a_cols)
+        self.PRO = complement_ardaid(b, self.PRO_old)
 
         # old ArdaId already matched for STR, from <++>
         # For new stressors, complement STR with new ArdaID
-        anId = self.STR_old.ardaid.max() + 10
-        for i, row in self.STR.iterrows():
-            if not row.ardaid > 0:
-                anId +=1
-                self.STR.ardaid[i] = anId
+        self.STR = complement_ardaid(self.STR, self.STR_old)
 
         # Match IMP ArdaID based on acronym
-        a = pd.merge(self.IMP, self.IMP_old[['ardaid','accronym']],
+        a = pd.merge(self.IMP.reset_index(), self.IMP_old[['ardaid','accronym']],
                      left_on='impactId', right_on='accronym',
                      how='left', copy=True)
-        assert(self.IMP.shape[0] == a.shape[0])
-        self.IMP = a.drop('accronym', 1)
+        a = finalize_indexes(a, self.IMP.index, duplicate_cols=['accronym'])
+        self.IMP = complement_ardaid(a, self.IMP_old)
 
-        # For new impacts, complement IMP with new ArdaID
-        anId = self.IMP_old.ardaid.max() + 10
-        for i, row in self.IMP.iterrows():
-            if not row.ardaid > 0:
-                anId +=1
-                self.IMP.ardaid[i] = anId
+
+        # Reorganize column orders for Arda
+        self.PRO = organize_labels(self.PRO,
+                    ['productName', 'activityName', 'geography', 'unitName'],
+                    firstcols=['ardaid'],
+                    lastcols=['unitName'])
+
+        self.STR = organize_labels(self.STR,
+                                   ['name', 'comp', 'subcomp', 'unit'],
+                                   firstcols=['ardaid'],
+                                   lastcols=['unit'])
+
+        self.IMP = organize_labels(self.IMP,
+                                   ['impactId', 'perspective', 'unit'],
+                                   firstcols=['ardaid'],
+                                   lastcols=['unit'])
+
+
+        # Change impact order for backward compatibility
+        self.IMP.sort('ardaid', inplace=True)
+        self.C = self.C.reindex(index=self.IMP.index)
+
 
 
     def _updatenull_log(self, sql_command, table, col,
