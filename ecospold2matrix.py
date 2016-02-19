@@ -329,30 +329,47 @@ class Ecospold2Matrix(object):
                 ['382-34-3',    '%356mec3%',   None, 'see '+ref],
                 ['22410-44-2',  '%245cb2%',    None, 'see '+ref],
                 ['84011-15-4',  '%245fa1%',    None, 'see '+ref],
-                ['375-03-1',    '%347mcc3%',   None, 'see '+ref]
-                ])
+                ['375-03-1',    '%347mcc3%',   None, 'see '+ref],
+                # Add CAS
+                ['74-82-8', 'Methane, from soil or biomass stock',None,
+                        'Methane is methane, should have CAS'],
+                ['678-26-2','Perfluoropentane', None, 'Missing CAS!!!'],
+                ['298-00-0', 'Methyl parathion', None, 'Missing CAS!!!'],
+                # Blank out CAS
+                ['', 'Gas, mine, off-gas, process, coal mining','8006-14-2', 'Different resource depletion than normal natural gas']])
 
 
         self._name_conflicts=pd.DataFrame(
-            columns=['name', 'cas', 'bad_name', 'comment'],
+            columns=['aName', 'cas', 'bad_name', 'comment'],
             data=[
-                # formerly case sensitive name n,n-dimethyl, now n,n'-dimethyl
-                ['n,n''-dimethylthiourea', '534-13-4', None,
-                    'Uppercase sensitivity'],
-                ['2-butenal, (2e)-', '123-73-9', '2-butenal',
-                    'cas of (more common) E configuration; cas of mix is'
-                    ' rather 4170-30-3'],
-                ['3-(1-methylbutyl)phenyl methylcarbamate', '2282-34-0',
-                    'bufencarb', 'resolve name-cas collision in ReCiPe: CAS'
-                    ' points to specific chemical, not bufencarb (008065-36-9),'
-                    ' which is a mixture of this substance and phenol,'
-                    ' 3-(1-ethylpropyl)-, 1-(n-methylcarbamate)'],
+             #   # Names that don't fit with their cas numbers
+             #   ['2-butenal, (2e)-', '123-73-9', '2-butenal',
+             #       'cas of (more common) E configuration; cas of mix is'
+             #       ' rather 4170-30-3'],
+             #   ['3-(1-methylbutyl)phenyl methylcarbamate', '2282-34-0',
+             #       'bufencarb', 'resolve name-cas collision in ReCiPe: CAS'
+             #       ' points to specific chemical, not bufencarb (008065-36-9),'
+             #       ' which is a mixture of this substance and phenol,'
+             #       ' 3-(1-ethylpropyl)-, 1-(n-methylcarbamate)'],
 
-                ['chlordane (technical)', '12789-03-6', None,
-                    'pure chlordane has cas 000057-74-9, and is also defined'
-                    ' for cis and trans. This one here seems to be more of a'
-                    ' mixture or low grade, no formula in scifinder'],
+                #['chlordane (technical)', '12789-03-6', None,
+                #    'pure chlordane has cas 000057-74-9, and is also defined'
+                #    ' for cis and trans. This one here seems to be more of a'
+                #    ' mixture or low grade, no formula in scifinder'],
+                # PLURALS
+                ['Chloride', None, 'Chlorides', 'Make all instances singular'],
+                ['Occupation, urban, green areas', None,
+                    'Occupation, urban, green area', 'Make all instances plural']
                 ])
+
+        self._synonyms = pd.DataFrame(
+                columns=['aName', 'anotherName'],
+                data=[
+                    ['Cyclohexane (for all cycloalkanes)',
+                        'Hydrocarbons, aliphatic, alkanes, cyclic'],
+                    ['Fresh water (obsolete)', 'Water, fresh'],
+                    ['Zeta-cypermethrin', 'Cypermethrin'] #TODO: double check
+                    ]);
 
         # TODO: define scheme in self.obs2char
         # self.obs2char_subcomp.to_sql('obs2char_subcomps', self.conn,
@@ -2345,6 +2362,11 @@ class Ecospold2Matrix(object):
         self.conn.commit()
         # Define more tags
         c.execute("""
+                        update {t} set tag='non-fossil'
+                        where name like '% from soil or biomass stock'
+                        or name2 like '% % from soil or biomass stock';
+                  """.format(t=table))
+        c.execute("""
                         update {t} set tag='mix'
                         where name like '% compounds'
                         or name2 like '% compounds';
@@ -2404,12 +2426,36 @@ class Ecospold2Matrix(object):
 
                 c.execute(""" update {t} set cas=?
                               where (name like ? or name2 like ?)
-                              and cas <> ?""".format(t=table),
-                              (row.cas, row.aName, row.aName, row.cas))
+                              """.format(t=table),
+                              (row.cas, row.aName, row.aName))
 
             if c.rowcount:
                 msg="Substituted CAS {} by {} for {} because {}"
                 self.log.info(msg.format( org_cas, row.cas, aName, row.comment))
+
+        for i, row in self._name_conflicts.iterrows():
+            if row.cas is not None:
+                c.execute("""update {t} set name=?
+                             where name like ? and cas=? """.format(t=table),
+                             (row.aName, row.bad_name, row.cas))
+                c.execute("""update {t} set name2=?
+                             where name2 like ? and cas=? """.format(t=table),
+                             (row.aName, row.bad_name, row.cas))
+            else:
+                c.execute("""update {t} set name2=?
+                             where name2 like ?""".format(t=table),
+                             (row.aName, row.bad_name))
+                c.execute("""update {t} set name=?
+                             where name like ?""".format(t=table),
+                             (row.aName, row.bad_name))
+
+            if c.rowcount:
+                msg="Substituted {} by {} for {} because {}"
+                self.log.info(msg.format(row.bad_name,
+                                         row.aName, row.cas, row.comment))
+
+
+
 
         self.conn.commit()
 
@@ -2628,6 +2674,8 @@ class Ecospold2Matrix(object):
         """ Populate substances, comp, subcomp, etc. from inventoried flows
         """
 
+        self._synonyms.to_sql('synonyms', self.conn, if_exists='replace')
+
         # Populate comp and subcomp
         c = self.conn.cursor()
         c.executescript(
@@ -2795,7 +2843,10 @@ class Ecospold2Matrix(object):
         # save to file
         self.conn.commit()
 
-    def characterize_flows(self, tables=('raw_ecoinvent', 'raw_recipe')):
+    def characterize_flows(self, tables=('raw_recipe','raw_ecoinvent')):
+
+        # Important, it is best to start with the characterisation factor in
+        # the tables tuple
         self._integrate_flows_withCAS(tables)
         self._integrate_flows_withoutCAS(tables)
         self._finalize_labels_and_factors(tables)
@@ -2804,11 +2855,10 @@ class Ecospold2Matrix(object):
         self._characterisation_matching()
         self.conn.commit()
 
-    def _update_labels_from_names(self, tables=('raw_ecoinvent', 'raw_recipe')):
+    def _update_labels_from_names(self, table):
         """ Update Substance ID in labels based on name matching"""
 
-        for table in tables:
-            self.conn.executescript(
+        self.conn.executescript(
                     """
             UPDATE OR ignore {t}
             SET substid=(
@@ -2818,30 +2868,58 @@ class Ecospold2Matrix(object):
                     AND {t}.tag IS n.tag
                     )
             WHERE {t}.substid IS NULL
-            AND {t}.cas IS NULL
-            ; """.format(t=scrub(table))
-            );
+            AND {t}.cas IS NULL;
+
+            --- Match with known synonyms
+            UPDATE OR ignore {t}
+            SET substid=(SELECT DISTINCT n.substid
+                         FROM names as n, synonyms as s
+                         WHERE ({t}.name like s.aName or {t}.name2 like s.aName)
+                         AND s.anotherName like n.name
+                         AND {t}.tag IS n.tag)
+            WHERE {t}.substid IS NULL
+            AND {t}.cas IS NULL;
+            """.format(t=scrub(table)));
         self.conn.commit()
 
-    def _insert_names_from_labels(self, tables=('raw_ecoinvent, raw_recipe')):
+        self.conn.executescript(
+            """
+            UPDATE OR ignore {t}
+            SET substid=(SELECT DISTINCT n.substid
+                         FROM names as n, synonyms as s
+                         WHERE ({t}.name like s.anotherName
+                                 OR {t}.name2 like s.anotherName)
+                         AND s.aName like n.name
+                         AND {t}.tag IS n.tag)
+            WHERE {t}.substid IS NULL
+            AND {t}.cas IS NULL;
+            """.format(t=scrub(table)));
+        self.conn.commit()
 
-        #TODO: make function of parameter
+    def _insert_names_from_labels(self, table):
+        """Subfunction to handle names/synonyms in _integrate_flows_* methods
+        """
 
-        self.conn.executescript("""
-        INSERT OR IGNORE INTO names (name, tag, substid)
-        SELECT DISTINCT name, tag, substId FROM raw_ecoinvent where substid is
-        not null
-        UNION
-        SELECT DISTINCT name2, tag, substId FROM raw_ecoinvent where substid is
-        not null;
+        c = self.conn.cursor()
+        c.executescript("""
+                --- Insert names
+                INSERT OR IGNORE INTO names (name, tag, substid)
+                SELECT DISTINCT name, tag, substId
+                FROM {t} where substid is not null
+                UNION
+                SELECT DISTINCT name2, tag, substId
+                FROM {t} where substid is not null;
 
-        INSERT OR IGNORE INTO names (name, tag, substid)
-        SELECT DISTINCT name, tag, substId FROM raw_recipe where substid is not
-        null
-        UNION
-        SELECT DISTINCT name2, tag, substId FROM raw_recipe where substid is
-        not null ;
-        """);
+                ---- INSERT OR IGNORE INTO names(name, tag, substid)
+                ---- SELECT DISTINCT s.anotherName, n.tag, n.substid
+                ---- FROM names n, synonyms s
+                ---- WHERE s.aName LIKE n.name;
+
+                ---- INSERT OR IGNORE INTO names(name, tag, substid)
+                ---- SELECT DISTINCT s.aName, n.tag, n.substid
+                ---- FROM names n, synonyms s
+                ---- WHERE s.anotherName LIKE n.name;
+                """.format(t=scrub(table)))
 
     def _integrate_flows_withCAS(self, tables=('raw_ecoinvent', 'raw_recipe')):
         """ Populate substances, comp, subcomp, etc. from inventoried flows
@@ -2874,8 +2952,7 @@ class Ecospold2Matrix(object):
             WHERE {t}.substid IS NULL
             ;
             """.format(t=scrub(table)))
-
-        self._insert_names_from_labels()
+            self._insert_names_from_labels(table)
         self.conn.commit()
 
 
@@ -2886,12 +2963,17 @@ class Ecospold2Matrix(object):
 
         c = self.conn.cursor()
 
-        # update labels substid from names
-        self._update_labels_from_names()
-
         # new substances for each new name-tags in one dataset
         # update labels with substid from substances
         for table in tables:
+            # update substid in labels by matching with names already defined
+            # catch any synonyms
+            print(table)
+            self._update_labels_from_names(table)
+            # Insert any new synonym
+            self._insert_names_from_labels(table)
+
+            # Define new substances for those that remain
             c.executescript("""
             -- 2.5: Create new substances for the remaining flows
 
@@ -2915,11 +2997,13 @@ class Ecospold2Matrix(object):
             ;
             """.format(t=scrub(table))) # 2.6
 
-            # insert into names
-            self._insert_names_from_labels()
+            # insert new name-substid pairs into names
+            self._insert_names_from_labels(table)
 
-            # update labels substid from names
-            self._update_labels_from_names()
+            # update substid in labels by matching with names already defined
+            self._update_labels_from_names(table)
+
+
         self.conn.commit()
 
 
@@ -2945,11 +3029,12 @@ class Ecospold2Matrix(object):
                 self.log.warning("There are missed flows in "+table)
                 print(missed_flows)
 
-        c.executescript(
+        # Log any near matches that might have been missed because of some
+        # plural
+        c.execute(
         """
         select * from Names as n1, Names as n2
-        where n1.name like n2.name||'s'
-        and n1.substid <> n2.substid;
+        where n1.name like n2.name||'s' and n1.substid <> n2.substid;
         """)
         missed_plurals = c.fetchall()
         if len(missed_plurals):
