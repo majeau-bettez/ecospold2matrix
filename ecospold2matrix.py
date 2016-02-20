@@ -262,119 +262,26 @@ class Ecospold2Matrix(object):
                 'casNumber': 'cas',
                 'Unit':'unit' }
 
-        ref='http://www.ecfr.gov/cgi-bin/text-idx?  SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9'
-        self._cas_conflicts=pd.DataFrame(
-                columns=['cas', 'aName', 'bad_cas', 'comment'],
-                data=[
-                # deprecated CAS
-                ['93-65-2', 'mecoprop', '7085-19-0',
-                    'deprecated CAS'],
-                ['107534-96-3', 'tebuconazole', '80443-41-0',
-                    'deprecated cas'],
-                ['302-04-5', None, '71048-69-6',
-                    'deprecated cas for thiocyanate'],
-                #
-                # WRONG CAS
-                #
-                ['138261-41-3', None,'38261-41-3', 'invalid cas for imidacloprid'],
-                ['108-62-3', 'metaldehyde', '9002-91-9',
-                    'was cas of the polymer, not the molecule'],
-                ['107-15-3', None, '117-15-3',
-                    'invalid cas, typo for ethylenediamine'],
-                ['74-89-5', 'methyl amine', '75-89-5', 'invalid CAS (typo?)'],
-                #
-                # ION VS SUBSTANCE
-                #
-# TODO:Thiocyanate, ion|71048-69-6|water| 302-04-5 # ReCiPe might be right
-                ['17428-41-0', 'arsenic, ion', '7440-38-2',
-                    'scifinder CAS for arsenic ion, As(5+)'],
-                ['22537-48-0', 'cadmium, ion', '7440-43-9',
-                    'scifinder CAS for cadmium ion'], # todo: check
-                ['18540-29-9', 'chromium vi', '7440-47-3',
-                    'scifinder CAS for chromium VI, no need to use neutral '
-                    'compound CAS'],
-                ['17493-86-6', 'Copper, ion', '7440-50-8',
-                    'scifinder CAS for copper ion'], # todo: check
-                ['14701-22-5', 'Nickel, ion', '7440-02-0',
-                    'scifinder CAS for Nickel II'],
-                ['14701-22-5', 'Nickel II', '7440-02-0',
-                    'scifinder CAS for Nickel II'],
-                ['14701-21-4', 'silver, ion', '7440-22-4',
-                    'scifinder CAS for Ag(+1)'],
-                ['22537-50-4', 'tin, ion', '7440-31-5',
-                    'scifinder CAS for Sn(4+)'],
-                ['22541-77-1', 'vanadium, ion', '7440-62-2',
-                    'scifinder CAS for vanadium ion'],
-                ['23713-49-7', 'zinc, ion', '7440-66-6',
-                    'scifinder cas for Zn(2+)'],
-                ['2764-72-9', 'diquat','231-36-7',
-                    'was cas of ion, not neutral molecule, caused conflict'
-                    ' with ReCiPe name-cas'],
-                #
-                # CONFUSION
-                #
-                ['56-35-9', 'tributyltin compounds', '56573-85-4',
-                    'both cas numbers tributyltin based. picked cas used by '
-                    'ReCiPe'],
-                #
-                # IPCC GHG notation
-                # ELECTRONIC CODE OF FEDERAL REGULATIONS
-                # http://www.ecfr.gov/cgi-bin/text-idx?SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
-                #
-                ['20193-67-3',  '%hfe-236fa',  None, 'scifinder CAS'],
-                ['57041-67-5',  '%hfe-236ea2', None, 'Desflurane: see '+ref],
-                ['160620-20-2', '%356pcc3%',   None, 'Scifinder CAS'],
-                ['50807-77-7',  '%356pcf2',    None, 'see '+ref],
-                ['35042-99-0',  '%356pcf3%',   None, 'see '+ref],
-                ['382-34-3',    '%356mec3%',   None, 'see '+ref],
-                ['22410-44-2',  '%245cb2%',    None, 'see '+ref],
-                ['84011-15-4',  '%245fa1%',    None, 'see '+ref],
-                ['375-03-1',    '%347mcc3%',   None, 'see '+ref],
-                # Add CAS
-                ['74-82-8', 'Methane, from soil or biomass stock',None,
-                        'Methane is methane, should have CAS'],
-                ['678-26-2','Perfluoropentane', None, 'Missing CAS!!!'],
-                ['298-00-0', 'Methyl parathion', None, 'Missing CAS!!!'],
-                # Blank out CAS
-                ['', 'Gas, mine, off-gas, process, coal mining','8006-14-2', 'Different resource depletion than normal natural gas']])
+        def read_pandas_csv(path):
+            tmp = pd.read_csv(path, sep='|', comment='#')
+            return tmp.where(pd.notnull(tmp), None)
 
-
-        self._name_conflicts=pd.DataFrame(
-            columns=['aName', 'cas', 'bad_name', 'comment'],
-            data=[
-             #   # Names that don't fit with their cas numbers
-             #   ['2-butenal, (2e)-', '123-73-9', '2-butenal',
-             #       'cas of (more common) E configuration; cas of mix is'
-             #       ' rather 4170-30-3'],
-             #   ['3-(1-methylbutyl)phenyl methylcarbamate', '2282-34-0',
-             #       'bufencarb', 'resolve name-cas collision in ReCiPe: CAS'
-             #       ' points to specific chemical, not bufencarb (008065-36-9),'
-             #       ' which is a mixture of this substance and phenol,'
-             #       ' 3-(1-ethylpropyl)-, 1-(n-methylcarbamate)'],
-
-                #['chlordane (technical)', '12789-03-6', None,
-                #    'pure chlordane has cas 000057-74-9, and is also defined'
-                #    ' for cis and trans. This one here seems to be more of a'
-                #    ' mixture or low grade, no formula in scifinder'],
-                # PLURALS
-                ['Chloride', None, 'Chlorides', 'Make all instances singular'],
-                ['Occupation, urban, green areas', None,
-                    'Occupation, urban, green area', 'Make all instances plural']
-                ])
-
-        self._synonyms = pd.DataFrame(
-                columns=['aName', 'anotherName'],
-                data=[
-                    ['Cyclohexane (for all cycloalkanes)',
-                        'Hydrocarbons, aliphatic, alkanes, cyclic'],
-                    ['Fresh water (obsolete)', 'Water, fresh'],
-                    ['Zeta-cypermethrin', 'Cypermethrin'] #TODO: double check
-                    ]);
-
-        # TODO: define scheme in self.obs2char
-        # self.obs2char_subcomp.to_sql('obs2char_subcomps', self.conn,
-        # if_exists='replace', index=False)
-
+        self._cas_conflicts = read_pandas_csv('parameters/cas_conflicts.csv')
+        self._synonyms = read_pandas_csv('parameters/synonyms.csv')
+        # POTENTIAL OTHER ISSUES
+        ## Names that don't fit with their cas numbers
+        #['2-butenal, (2e)-', '123-73-9', '2-butenal',
+        #    'cas of (more common) E configuration; cas of mix is'
+        #    ' rather 4170-30-3'],
+        #['3-(1-methylbutyl)phenyl methylcarbamate', '2282-34-0',
+        #    'bufencarb', 'resolve name-cas collision in ReCiPe: CAS'
+        #    ' points to specific chemical, not bufencarb (008065-36-9),'
+        #    ' which is a mixture of this substance and phenol,'
+        #    ' 3-(1-ethylpropyl)-, 1-(n-methylcarbamate)'],
+        #['chlordane (technical)', '12789-03-6', None,
+        #    'pure chlordane has cas 000057-74-9, and is also defined'
+        #    ' for cis and trans. This one here seems to be more of a'
+        #    ' mixture or low grade, no formula in scifinder'],
 
         # DEFINE LOG TOOL
         self.log = logging.getLogger(self.project_name)
@@ -2362,7 +2269,7 @@ class Ecospold2Matrix(object):
         self.conn.commit()
         # Define more tags
         c.execute("""
-                        update {t} set tag='non-fossil'
+                        update {t} set tag='fossil'
                         where name like '% from soil or biomass stock'
                         or name2 like '% % from soil or biomass stock';
                   """.format(t=table))
@@ -2432,28 +2339,6 @@ class Ecospold2Matrix(object):
             if c.rowcount:
                 msg="Substituted CAS {} by {} for {} because {}"
                 self.log.info(msg.format( org_cas, row.cas, aName, row.comment))
-
-        for i, row in self._name_conflicts.iterrows():
-            if row.cas is not None:
-                c.execute("""update {t} set name=?
-                             where name like ? and cas=? """.format(t=table),
-                             (row.aName, row.bad_name, row.cas))
-                c.execute("""update {t} set name2=?
-                             where name2 like ? and cas=? """.format(t=table),
-                             (row.aName, row.bad_name, row.cas))
-            else:
-                c.execute("""update {t} set name2=?
-                             where name2 like ?""".format(t=table),
-                             (row.aName, row.bad_name))
-                c.execute("""update {t} set name=?
-                             where name like ?""".format(t=table),
-                             (row.aName, row.bad_name))
-
-            if c.rowcount:
-                msg="Substituted {} by {} for {} because {}"
-                self.log.info(msg.format(row.bad_name,
-                                         row.aName, row.cas, row.comment))
-
 
 
 
@@ -2858,8 +2743,10 @@ class Ecospold2Matrix(object):
     def _update_labels_from_names(self, table):
         """ Update Substance ID in labels based on name matching"""
 
+        c = self.conn.cursor()
         self.conn.executescript(
                     """
+            --- Match based on names
             UPDATE OR ignore {t}
             SET substid=(
                     SELECT n.substid
@@ -2869,31 +2756,26 @@ class Ecospold2Matrix(object):
                     )
             WHERE {t}.substid IS NULL
             AND {t}.cas IS NULL;
-
-            --- Match with known synonyms
-            UPDATE OR ignore {t}
-            SET substid=(SELECT DISTINCT n.substid
-                         FROM names as n, synonyms as s
-                         WHERE ({t}.name like s.aName or {t}.name2 like s.aName)
-                         AND s.anotherName like n.name
-                         AND {t}.tag IS n.tag)
-            WHERE {t}.substid IS NULL
-            AND {t}.cas IS NULL;
             """.format(t=scrub(table)));
-        self.conn.commit()
 
-        self.conn.executescript(
-            """
-            UPDATE OR ignore {t}
-            SET substid=(SELECT DISTINCT n.substid
-                         FROM names as n, synonyms as s
-                         WHERE ({t}.name like s.anotherName
-                                 OR {t}.name2 like s.anotherName)
-                         AND s.aName like n.name
-                         AND {t}.tag IS n.tag)
-            WHERE {t}.substid IS NULL
-            AND {t}.cas IS NULL;
-            """.format(t=scrub(table)));
+        # Match with known synonyms, in decreasing order of accuracy in
+        # approximation
+        for i in np.sort(self._synonyms.approximationLevel.unique()):
+            for j in [('aName', 'anotherName'),('anotherName', 'aName')]:
+                c.execute("""
+                    UPDATE OR ignore {t}
+                    SET substid=(
+                                SELECT DISTINCT n.substid
+                                 FROM names as n, synonyms as s
+                                 WHERE ({t}.name like s.{c0}
+                                     OR {t}.name2 like s.{c0})
+                                 AND s.{c1} like n.name
+                                 AND {t}.tag IS n.tag
+                                 AND s.approximationLevel = ?)
+                    WHERE {t}.substid IS NULL
+                    AND {t}.cas IS NULL
+                    """.format(t=scrub(table), c0=scrub(j[0]), c1=scrub(j[1])),
+                    [str(i)])
         self.conn.commit()
 
     def _insert_names_from_labels(self, table):
@@ -2968,7 +2850,6 @@ class Ecospold2Matrix(object):
         for table in tables:
             # update substid in labels by matching with names already defined
             # catch any synonyms
-            print(table)
             self._update_labels_from_names(table)
             # Insert any new synonym
             self._insert_names_from_labels(table)

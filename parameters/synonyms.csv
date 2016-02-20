@@ -1,0 +1,27 @@
+approximationLevel|aName|anotherName|comment
+0|Chloride|Chlorides|Singular/plural
+0|Occupation, urban, green areas|Occupation, urban, green area|Singular/plural
+0|Cyclohexane (for all cycloalkanes)|Hydrocarbons, aliphatic, alkanes, cyclic|
+0|Fresh water (obsolete)|Water, fresh|
+0|Occupation, annual crop, non-irrigated|Occupation, arable, non-irrigated|
+0|Occupation, arable|Occupation, arable land, unspecified use|
+0|Transformation, to unspecified|Transformation, to unknown|
+0|Transformation, from unspecified|Transformation, from unknown|
+#
+# Approximations
+#
+1|Cyhalothrin, gamma-|Lambda-cyhalothrin|wikipedia: Gamma-cyhalothrin is the most insecticidally active isomer of cyhalothrin/lambda-cyhalothrin
+1|Zeta-cypermethrin|Cypermethrin|
+1|Occupation, annual crop, non-irrigated, intensive|Occupation, arable, non-irrigated, monotone-intensive|
+1|Transformation, from forest|Transformation, from forest, primary (non-use)|
+1|Transformation, from forest|Transformation, from forest, secondary (non-use)|
+1|NMVOC, non-methane volatile organic compounds, unspecified origin|VOC, volatile organic compounds, unspecified origin|
+
+#
+# Backstop Approximations
+#
+2|Transformation, to forest|Transformation, to forest%|
+2|Occupation, arable|Occupation, arable%|
+2|Occupation, arable|Occupation, annual crop%|
+2|Occupation, permanent crop|Occupation, permanent crop%|
+
