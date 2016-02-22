@@ -2,9 +2,9 @@
 -- TEMPORARY TABLES TO FACILITATE INPUT OF DATA
 -- ==================================================
 
-DROP table if exists raw_recipe;
+DROP table if exists raw_char;
 
-CREATE TABLE raw_recipe(
+CREATE TABLE raw_char(
 id           INTEGER NOT NULL PRIMARY KEY,
 comp         TEXT,
 subcomp      TEXT,
@@ -20,8 +20,8 @@ UNIQUE(comp, subcomp, name, name2, tag, cas, unit, impactId),
 CONSTRAINT hasAName CHECK(name IS NOT NULL OR name2 IS NOT NULL)
 );
 
-DROP TABLE IF EXISTS raw_ecoinvent;
-CREATE TABLE raw_ecoinvent(
+DROP TABLE IF EXISTS raw_inventory;
+CREATE TABLE raw_inventory(
 id    SERIAL  NOT NULL PRIMARY KEY,
 substId     INTEGER,
 name        TEXT    ,
@@ -131,8 +131,8 @@ UNIQUE (substId, comp, subcomp, unit, impactId, method, factorValue)
 -- 	logging and idenfying source of conflict
 );
 
-DROP TABLE IF EXISTS labels_ecoinvent;
-CREATE TABLE labels_ecoinvent(
+DROP TABLE IF EXISTS labels_inventory;
+CREATE TABLE labels_inventory(
 id    SERIAL  NOT NULL PRIMARY KEY,
 substId     INTEGER REFERENCES substances,
 name        TEXT    ,

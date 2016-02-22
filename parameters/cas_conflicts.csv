@@ -30,6 +30,7 @@ cas|aName|bad_cas|comment
 # CONFUSION
 #
 56-35-9|tributyltin compounds|56573-85-4|both cas numbers tributyltin based. picked cas used by ReCiPe
+7429-90-5|Aluminium, 24% in bauxite, 11% in crude ore|1318-16-7|Use CAS of Aluminium, not the bauxite it is in
 #
 # IPCC GHG notation
 # ELECTRONIC CODE OF FEDERAL REGULATIONS
@@ -50,6 +51,7 @@ cas|aName|bad_cas|comment
 74-82-8|Methane, from soil or biomass stock|NaN|Methane is methane, should have CAS
 678-26-2|Perfluoropentane|NaN|Missing CAS!!!
 298-00-0|Methyl parathion|NaN|Missing CAS!!!
+630-08-0|Carbon monoxide, from soil or biomass stock|NaN|Missing CAS
 #
 # Blank out CAS
 #
