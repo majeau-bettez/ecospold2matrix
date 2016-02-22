@@ -1,0 +1,37 @@
+approximationLevel|aName|anotherName|comment
+0|Chloride|Chlorides|Singular/plural
+0|Occupation, urban, green areas|Occupation, urban, green area|Singular/plural
+0|Cyclohexane (for all cycloalkanes)|Hydrocarbons, aliphatic, alkanes, cyclic|
+0|Fresh water (obsolete)|Water, fresh|
+0|Occupation, annual crop, non-irrigated|Occupation, arable, non-irrigated|
+0|Occupation, arable|Occupation, arable land, unspecified use|
+0|Transformation, to unspecified|Transformation, to unknown|
+0|Transformation, from unspecified|Transformation, from unknown|
+0|Occupation|Occupation, unknown|
+#
+# Resources
+#
+1|Cadmium|Cadmium, 0.30% in sulfide, Cd 0.18%, Pb, Zn, Ag, In|
+1|Indium|Indium, 0.005% in sulfide, In 0.003%, Pb, Zn, Ag, Cd|
+1|Zinc|Zinc, 9.0% in sulfide, Zn 5.3%, Pb, Ag, Cd, In|
+1|Iron|Iron, 72% in magnetite, 14% in crude ore|
+1|Tin|Tin, 79% in cassiterite, 0.1% in crude ore|
+1|Aluminium|Aluminium, 24% in bauxite, 11% in crude ore|
+#
+# Approximations
+#
+2|Cyhalothrin, gamma-|Lambda-cyhalothrin|wikipedia: Gamma-cyhalothrin is the most insecticidally active isomer of cyhalothrin/lambda-cyhalothrin
+2|Zeta-cypermethrin|Cypermethrin|
+2|Occupation, annual crop, non-irrigated, intensive|Occupation, arable, non-irrigated, monotone-intensive|
+2|Transformation, from forest|Transformation, from forest, primary (non-use)|
+2|Transformation, from forest|Transformation, from forest, secondary (non-use)|
+2|NMVOC, non-methane volatile organic compounds, unspecified origin|VOC, volatile organic compounds, unspecified origin|
+
+#
+# Backstop Approximations
+#
+3|Transformation, to forest|Transformation, to forest%|
+3|Occupation, arable|Occupation, arable%|
+3|Occupation, arable|Occupation, annual crop%|
+3|Occupation, permanent crop|Occupation, permanent crop%|
+

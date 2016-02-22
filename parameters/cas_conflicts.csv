@@ -1,0 +1,58 @@
+cas|aName|bad_cas|comment
+#
+# DEPRECATED CAS
+#
+93-65-2|mecoprop|7085-19-0|deprecated CAS
+107534-96-3|tebuconazole|80443-41-0|deprecated cas
+302-04-5|NaN|71048-69-6|deprecated cas for thiocyanate
+#
+# WRONG CAS
+#
+138261-41-3|NaN|38261-41-3|invalid cas for imidacloprid
+108-62-3|metaldehyde|9002-91-9|was cas of the polymer, not the molecule
+107-15-3|NaN|117-15-3|invalid cas, typo for ethylenediamine
+74-89-5|methyl amine|75-89-5|invalid CAS (typo?)
+#
+# ION VS SUBSTANCE
+#
+17428-41-0|arsenic, ion|7440-38-2|scifinder CAS for arsenic ion, As(5+)
+22537-48-0|cadmium, ion|7440-43-9|scifinder CAS for cadmium ion
+18540-29-9|chromium vi|7440-47-3|scifinder CAS for chromium VI, no need to use neutral compound CAS
+17493-86-6|Copper, ion|7440-50-8|scifinder CAS for copper ion
+14701-22-5|Nickel, ion|7440-02-0|scifinder CAS for Nickel II
+14701-22-5|Nickel II|7440-02-0|scifinder CAS for Nickel II
+14701-21-4|silver, ion|7440-22-4|scifinder CAS for Ag(+1)
+22537-50-4|tin, ion|7440-31-5|scifinder CAS for Sn(4+)
+22541-77-1|vanadium, ion|7440-62-2|scifinder CAS for vanadium ion
+23713-49-7|zinc, ion|7440-66-6|scifinder cas for Zn(2+)
+2764-72-9|diquat|231-36-7|was cas of ion, not neutral molecule, caused conflict with ReCiPe name-cas
+#
+# CONFUSION
+#
+56-35-9|tributyltin compounds|56573-85-4|both cas numbers tributyltin based. picked cas used by ReCiPe
+7429-90-5|Aluminium, 24% in bauxite, 11% in crude ore|1318-16-7|Use CAS of Aluminium, not the bauxite it is in
+#
+# IPCC GHG notation
+# ELECTRONIC CODE OF FEDERAL REGULATIONS
+# http://www.ecfr.gov/cgi-bin/text-idx?SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
+#
+20193-67-3|%hfe-236fa|NaN|scifinder CAS
+57041-67-5|%hfe-236ea2|NaN|Desflurane: see http://www.ecfr.gov/cgi-bin/text-idx?  SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
+160620-20-2|%356pcc3%|NaN|Scifinder CAS
+50807-77-7|%356pcf2|NaN|see http://www.ecfr.gov/cgi-bin/text-idx?  SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
+35042-99-0|%356pcf3%|NaN|see http://www.ecfr.gov/cgi-bin/text-idx?  SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
+382-34-3|%356mec3%|NaN|see http://www.ecfr.gov/cgi-bin/text-idx?  SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
+22410-44-2|%245cb2%|NaN|see http://www.ecfr.gov/cgi-bin/text-idx?  SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
+84011-15-4|%245fa1%|NaN|see http://www.ecfr.gov/cgi-bin/text-idx?  SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
+375-03-1|%347mcc3%|NaN|see http://www.ecfr.gov/cgi-bin/text-idx?  SID=d05c444252bad7fdc5f31ec4ab0161ae&node=40:21.0.1.1.3.1.1.10.11&rgn=div9
+#
+# ADD MISSING CAS
+#
+74-82-8|Methane, from soil or biomass stock|NaN|Methane is methane, should have CAS
+678-26-2|Perfluoropentane|NaN|Missing CAS!!!
+298-00-0|Methyl parathion|NaN|Missing CAS!!!
+630-08-0|Carbon monoxide, from soil or biomass stock|NaN|Missing CAS
+#
+# Blank out CAS
+#
+|Gas, mine, off-gas, process, coal mining|8006-14-2|Different resource depletion than normal natural gas

@@ -5,6 +5,7 @@ import pandas.util.testing as pdt
 import numpy as np
 import json
 import pdb
+import IPython
 # pylint: disable-msg=C0103
 
 
@@ -12,6 +13,7 @@ import pdb
 #[Apos, Fpos] = e2m.normalize_flows(Z, G, output, True)
 
 class TestE2M(unittest.TestCase):
+
 
     def setUp(self):
         self.sysdir='./test/'
@@ -96,6 +98,37 @@ class TestE2M(unittest.TestCase):
                            'CO2': np.nan}}
         self.G_pro = pd.DataFrame.from_dict(g).reindex_like(self.F)
 
+    def test_execute_log(self):
+
+        parser = e2m.Ecospold2Matrix(self.sysdir, self.name, verbose=True)
+
+        c = parser.conn.cursor()
+        c.executescript("""
+            drop table if exists foo;
+            create table foo (
+                aName text  unique,
+                anId    int unique);
+            drop table if exists fou;
+            create table fou (
+                aName text  unique,
+                anId    int unique);
+                """)
+        c.execute(""" insert or ignore into foo values ('soleil', NULL);""")
+        c.execute(""" insert or ignore into foo values ('lune', NULL);""")
+        c.execute(""" insert or ignore into fou values ('soleil', 8);""")
+
+        sql_command = """ update foo
+        set anId = (select distinct fou.anId
+                    from fou where foo.aName = fou.aName)
+        where foo.anId is NULL """
+
+        print("Gonna test updatenull_log")
+        changes = parser._updatenull_log(sql_command, 'foo', 'anId')
+        assert(changes==1)
+
+        print("Gonna test updatenull_log")
+        changes = parser._updatenull_log(sql_command, 'foo', 'anId')
+        assert(changes==0)
 
 
     def assert_same_but_roworder(self, x, y, cols=None):
@@ -190,6 +223,7 @@ class TestE2M(unittest.TestCase):
         parser.activities = pd.read_csv('./test/activities.csv', sep='|', index_col=0)
         parser.STR = pd.read_csv('./test/STR.csv', sep='|', index_col=0)
         parser.PRO = pd.read_table('./test/PRO.csv', sep='|', index_col=0)
+        IPython.embed()
 
         parser.complement_labels()
 
@@ -326,6 +360,8 @@ class TestE2M(unittest.TestCase):
         pdt.assert_frame_equal(parser.U, U0)
         pdt.assert_frame_equal(parser.V, V0)
         pdt.assert_frame_equal(parser.G_act, G0)
+
+
 
 if __name__ == '__main__':
     unittest.main()
