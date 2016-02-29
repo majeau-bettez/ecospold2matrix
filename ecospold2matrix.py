@@ -3023,7 +3023,7 @@ class Ecospold2Matrix(object):
         # for cas, ardaid, name2, etc.
 
         sql_command = """
-        update labels_out
+        update or ignore labels_out
         set ardaid=(select ardaid from old_labels ol
                     where labels_out.substId=ol.substId
                     and labels_out.comp=ol.comp
@@ -3212,12 +3212,14 @@ class Ecospold2Matrix(object):
         _integrate_old_labels(). For impact categories, matching based on
         acronyms. For processes, elementary flows and impacts without an Id,
         one is serially defined.
-        
+
         """
 
-        def complement_ardaid(label, old_label, column='ardaid',step=10):
+        def complement_ardaid(label, old_label, column='ardaid',step=10,
+        name='an_unamed_label'):
             """ Generate ArdaId for processes, stressors or impacts needing it
             """
+
             # Start above the maximum historical ID (+ step, for buffer)
             anId = old_label.ardaid.max() + step
 
@@ -3226,6 +3228,11 @@ class Ecospold2Matrix(object):
                 if not row['ardaid'] > 0:
                     anId +=1
                     label.ix[i,'ardaid'] = anId
+
+            # Make sure all Ids are unique to start with
+            if len(label.ix[:, column].unique()) != len(label.ix[:, column]):
+               self.log.error('There are duplicate Ids in {}'.format(name))
+
             return label
 
 
@@ -3276,18 +3283,18 @@ class Ecospold2Matrix(object):
                  how='left',
                  copy=True)
         b = finalize_indexes(b, self.PRO.index, duplicate_cols=a_cols)
-        self.PRO = complement_ardaid(b, self.PRO_old)
+        self.PRO = complement_ardaid(b, self.PRO_old, name='PRO')
 
-        # old ArdaId already matched for STR, from <++>
+        # old ArdaId already matched for STR, from _integrate_old_labels()
         # For new stressors, complement STR with new ArdaID
-        self.STR = complement_ardaid(self.STR, self.STR_old)
+        self.STR = complement_ardaid(self.STR, self.STR_old, name='STR')
 
         # Match IMP ArdaID based on acronym
         a = pd.merge(self.IMP.reset_index(), self.IMP_old[['ardaid','accronym']],
                      left_on='impactId', right_on='accronym',
                      how='left', copy=True)
         a = finalize_indexes(a, self.IMP.index, duplicate_cols=['accronym'])
-        self.IMP = complement_ardaid(a, self.IMP_old)
+        self.IMP = complement_ardaid(a, self.IMP_old, name='IMP')
 
 
         # Reorganize column orders for Arda

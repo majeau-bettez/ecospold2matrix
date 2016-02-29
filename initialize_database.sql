@@ -182,7 +182,7 @@ formula     	TEXT    ,
 unit        	TEXT    ,
 cas         	text    CHECK (cas NOT LIKE '0%'),
 name2       	TEXT,
-ardaid	    	INTEGER,
+ardaid	    	INTEGER UNIQUE,
 characterized	Boolean	DEFAULT NULL
 CONSTRAINT hasAName CHECK(NAME IS NOT NULL OR name2 IS NOT NULL),
 FOREIGN KEY (name, tag) REFERENCES names(name, tag),
