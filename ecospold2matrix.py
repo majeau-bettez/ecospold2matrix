@@ -2194,6 +2194,13 @@ class Ecospold2Matrix(object):
         c = self.conn.cursor()
         table= scrub(table)
 
+        # Harmonize label units
+        c.executescript( """
+            UPDATE {t} set unit=trim(unit);
+            update {t} set unit='m3' where unit='Nm3';
+            update {t} set unit='m2a' where unit='m2*year';
+            update {t} set unit='m3a' where unit='m3*year';
+            """.format(t=table))
 
         # TRIM, AND HARMONIZE COMP, SUBCOMP, AND OTHER  NAMES
         c.executescript( """
@@ -2202,8 +2209,7 @@ class Ecospold2Matrix(object):
             subcomp=trim((lower(subcomp))),
             name=trim(name),
             name2=trim(name2),
-            cas=trim(cas),
-            unit=trim(unit);
+            cas=trim(cas);
 
             update {t} set subcomp='unspecified'
             where subcomp is null or subcomp='(unspecified)' or subcomp='';
@@ -2216,9 +2222,8 @@ class Ecospold2Matrix(object):
 
             update {t} set comp='resource' where comp='raw';
             update {t} set comp='resource' where comp='natural resource';
-            update {t} set unit='m3' where unit='Nm3';
-
             """.format(t=table))
+
 
         try:
             c.executescript("""
@@ -2478,7 +2483,7 @@ class Ecospold2Matrix(object):
         c.execute("""
         insert into raw_char(
                 comp, subcomp, name, name2, cas, unit, impactId, factorValue)
-        select distinct comp, subcomp, recipeName, simaproName, cas,
+        select distinct comp, subcomp, charName, simaproName, cas,
         unit, impactId, factorValue
         from tmp;
         """)
@@ -2512,7 +2517,7 @@ class Ecospold2Matrix(object):
                   " emission to water to be ionic (Cu(2+)) instead"
                   " of neutral.".format(c.rowcount))
 
-        # major cleanup
+        # MAJOR CLEANUP
         self.clean_label('raw_char')
 
         # COMPARTMENT SPECIFIC FIXES,
