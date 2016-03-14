@@ -271,6 +271,7 @@ class Ecospold2Matrix(object):
             return tmp.where(pd.notnull(tmp), None)
         self._cas_conflicts = read_pandas_csv('parameters/cas_conflicts.csv')
         self._synonyms = read_pandas_csv('parameters/synonyms.csv')
+        self._custom_factors = read_pandas_csv('parameters/custom_factors.csv')
         # POTENTIAL OTHER ISSUES
         ## Names that don't fit with their cas numbers
         #['2-butenal, (2e)-', '123-73-9', '2-butenal',
@@ -2554,6 +2555,7 @@ class Ecospold2Matrix(object):
         self.conn.commit()
 
 
+
     def populate_complementary_tables(self):
         """ Populate substances, comp, subcomp, etc. from inventoried flows
         """
@@ -2728,15 +2730,40 @@ class Ecospold2Matrix(object):
         self.conn.commit()
 
     def characterize_flows(self, tables=('raw_char','raw_inventory')):
+        """
+        Master function to characterize elementary flows
 
-        # Important, it is best to start with the characterisation factor in
-        # the tables tuple
+        Args
+        ----
+        * tables: tuple of the tables to be processes, typically a raw table of
+        * characterized flows (raw_char) and a table of inventoried elementary
+        * flows (raw_inventory)
+
+        IMPORTANT: because of the iterative treatment of synonyms and the use
+        of proxies to match as many flows as possible, it is best that the
+        tables tuple start with the table of characterized flows (raw_char)
+
+        """
+
+        # Integrate substances based on CAS for each table
         self._integrate_flows_withCAS(tables)
+
+        # Integrate substances by string matching and synonyms for each table
         self._integrate_flows_withoutCAS(tables)
+
+        # Clean up, production of lists of inventory and characterised
+        # stressors, and compile table of characterisation factors
         self._finalize_labels_and_factors(tables)
+
+
+        # Integrate old stressor list, notably to re-use old Ids
         if self.STR_old is not None:
             self._integrate_old_labels()
+
+        # Produce stressor label (STR), impact labels (IMP),  and
+        # characterisation matrix (C)
         self._characterisation_matching()
+
         self.conn.commit()
 
     def _update_labels_from_names(self, table):
@@ -2804,6 +2831,8 @@ class Ecospold2Matrix(object):
 
     def _integrate_flows_withCAS(self, tables=('raw_inventory', 'raw_char')):
         """ Populate substances, comp, subcomp, etc. from inventoried flows
+
+        Can be seen as a subroutine of self.characterize_flows()
         """
 
         # Populate comp and subcomp
@@ -2840,6 +2869,7 @@ class Ecospold2Matrix(object):
     def _integrate_flows_withoutCAS(self, tables=('raw_inventory', 'raw_char')):
         """ populate substances and names tables from flows without cas
 
+        Can be seen as a subroutine of self.characterize_flows()
         """
 
         c = self.conn.cursor()
@@ -2888,7 +2918,28 @@ class Ecospold2Matrix(object):
 
 
     def _finalize_labels_and_factors(self, tables=('raw_char', 'raw_inventory')):
+        """ SubstID matching qualitiy checks, produce labels, populate factors
+
+        Can be seen as a subroutine of self.characterize_flows()
+
+        Prep work:
+            * Checks for mised synonyms in substid matching
+            * checks for near misses because of plurals
+            * Link Names to Schemes (Recipe*, ecoinvent, etc.) in nameHasScheme
+        Main tasks:
+            * Produce labels (labels_inventory, labels_char)
+            * Populate the factors table with factors of production
+
+        Post processing:
+            * Customize characterisation factors based on custom_factors.csv
+                 parameter
+            * Identify conflicts
+
+        """
         c = self.conn.cursor()
+
+        # Check for apparent synonyms that have different substance Ids
+        # and log warning
         c.executescript(
         """
         select distinct r.name, n1.substid, r.name2, n2.substid
@@ -2901,6 +2952,8 @@ class Ecospold2Matrix(object):
             self.log.warning("Probably missed on some synonym pairs")
             print(missed_synonyms)
 
+        # Check for flows that have not been matched to substance ID and log
+        # warning
         for table in tables:
             c.execute(
                 "select * from {} where substid is null;".format(scrub(table)))
@@ -2922,43 +2975,53 @@ class Ecospold2Matrix(object):
             print(missed_plurals)
 
 
+        # Match Names with Schemes (Simapro, Recipe, Ecoinvent, etc.)
         self.conn.executescript("""
+        --- match names with scheme of self.version_name
         INSERT INTO nameHasScheme
         SELECT DISTINCT n.nameId, s.schemeId from names n, schemes s
         WHERE n.name in (SELECT DISTINCT name FROM raw_inventory)
         and s.name='{}';
 
+        --- match names with scheme of self.char_method
         insert into nameHasScheme
         select distinct n.nameId, s.schemeId from names n, schemes s
         where n.name in (select name from raw_char)
         and s.name='{}';
 
+        --- match alternative name in characterisation method (name2) with
+        --- simapro scheme (hardcoded)
         insert into nameHasScheme
-        select distinct n.nameId, s.schemeId from names n, schemes s
+        select distinct n.nameId, s.schemeId 
+        from names n, schemes s
         where n.name in (select name2 from raw_char)
         and s.name='simapro';
-        """.format(self.version_name, self.char_method)) # the very end
-#
+        """.format(scrub(self.version_name), scrub(self.char_method)))
+
+        # For each table, prepare labels and, if applicable, populate
+        # factors table with characterisation factors
         for i in range(len(tables)):
             table = scrub(tables[i])
             if 'inventory' in table:
                 t_out = 'labels_inventory'
             else:
                 t_out = 'labels_char'
+                # Populate factors table
                 self.conn.commit()
-
                 c.execute(# only loose constraint on table, the better to
                           # identify uniqueness conflicts and log problems in a
                           # few lines (as soon as for-loop is over)
+                          #
+                          # TODO: fix the way methods is defined
                 """
                     insert or ignore into factors(
                         substId, comp, subcomp, unit, impactId, factorValue, method)
                     select distinct
-                        substId, comp, subcomp, unit, impactId, factorValue, '{t}'
+                        substId, comp, subcomp, unit, impactId, factorValue, '{c}'
                     from {t};
-                """.format(t=table)
+                """.format(t=table, c=scrub(self.char_method))
                 )
-
+            # Prepare labels
             self.conn.executescript("""
             INSERT INTO {to}(
                 id, substId, name, name2, tag, comp, subcomp, cas, unit)
@@ -2966,6 +3029,21 @@ class Ecospold2Matrix(object):
                 id, substId, name, name2, tag, comp, subcomp, cas, unit
             FROM {t};
             """.format(t=table, to=t_out))
+
+        # Customize characterizations based on custom_factors.csv
+        for i,row in self._custom_factors.iterrows():
+            c.execute("""
+            UPDATE OR IGNORE factors
+            SET factorValue=?
+            WHERE impactId = ?
+            AND substid=(SELECT DISTINCT substid
+                         FROM names WHERE name LIKE ?)
+            AND comp=? AND subcomp=? AND unit=?;""", (row.factorValue,
+                row.impactID, row.aName, row.comp, row.subcomp, row.unit))
+            if c.rowcount:
+                msg="Custimized {} factor to {} for {} ({}) in {} {}"
+                self.log.info(msg.format(row.impactID, row.factorValue,
+                    row.aName, row.unit, row.comp, row.subcomp))
 
         # Identify conflicting characterisation factors
         sql_command = """ select distinct
