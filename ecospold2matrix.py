@@ -3127,15 +3127,16 @@ class Ecospold2Matrix(object):
         INSERT INTO obs2char(
             flowId, impactId, factorId, factorValue, scheme)
         SELECT DISTINCT
-            lo.id, f.impactId, f.factorId, f.factorValue, '{}'
+            lo.id, f.impactId, f.factorId, f.factorValue, f.method
         FROM
             labels_out lo, factors f
         WHERE
             lo.substId = f.substId AND
             lo.comp = f.comp AND
             lo.subcomp = f.subcomp AND
+            f.method = '{}' AND
             lo.unit = f.unit;
-        """.format(self.char_method))
+        """.format(scrub(self.char_method)))
         self.log.info("Matched {} flows and factors, with exact subcomp"
                       " matching".format(c.rowcount))
 
@@ -3145,33 +3146,35 @@ class Ecospold2Matrix(object):
         INSERT or ignore INTO obs2char(
             flowId, impactId, factorId, factorValue, scheme)
         SELECT DISTINCT
-            lo.id, f.impactId, f.factorId, f.factorValue, '{}'
+            lo.id, f.impactId, f.factorId, f.factorValue, f.method
         FROM
             labels_out lo, factors f, obs2char_subcomps ocs
         WHERE
             lo.substId = f.substId AND
             lo.comp = f.comp AND
             lo.subcomp = ocs.obs_sc AND ocs.char_sc = f.subcomp AND
+            f.method = '{}' AND
             lo.unit = f.unit;
-        """.format(self.char_method))
+        """.format(scrub(self.char_method)))
         self.log.info("Matched {} flows and factors, with approximate subcomp"
                       " matching".format(c.rowcount))
 
-        # second insert for subcomp 'unspecified'
+        # third insert for subcomp 'unspecified'
         c.execute(
         """
         INSERT or ignore INTO obs2char(
             flowId, impactId, factorId, factorValue, scheme)
         SELECT DISTINCT
-            lo.id, f.impactId, f.factorId, f.factorValue, '{}'
+            lo.id, f.impactId, f.factorId, f.factorValue, f.method
         FROM
             labels_out lo, factors f, obs2char_subcomps ocs
         WHERE
             lo.substId = f.substId AND
             lo.comp = f.comp AND
             f.subcomp = 'unspecified' AND
+            f.method = '{}' AND
             lo.unit = f.unit;
-        """.format(self.char_method))
+        """.format(scrub(self.char_method)))
         self.log.info("Matched {} flows and factors, with 'unspecified' subcomp"
                       " matching".format(c.rowcount))
 
@@ -3181,15 +3184,16 @@ class Ecospold2Matrix(object):
         INSERT or ignore INTO obs2char(
             flowId, dsid, impactId, factorId, factorValue, scheme)
         SELECT DISTINCT
-            lo.id, lo.dsid, f.impactId, f.factorId, f.factorValue, '{}'
+            lo.id, lo.dsid, f.impactId, f.factorId, f.factorValue, f.method
         FROM
             labels_out lo, factors f, fallback_sc fsc
         WHERE
             lo.substId = f.substId AND
             lo.comp = f.comp AND lo.comp=fsc.comp AND
             f.subcomp=fsc.fallbacksubcomp AND
+            f.method = '{}' AND
             lo.unit = f.unit;
-        """)
+        """.format(scrub(self.char_method)))
         self.log.info("Matched {} flows and factors, by falling back to a "
                       "default subcompartment".format(c.rowcount))
 
