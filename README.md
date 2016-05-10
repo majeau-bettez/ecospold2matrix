@@ -42,7 +42,6 @@ Dependencies
 - Numpy
 - Scipy
 - lxml
-- pytz
 - Six
 - xlrd
 - xlwt
