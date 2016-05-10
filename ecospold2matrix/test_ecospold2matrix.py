@@ -5,7 +5,6 @@ import pandas.util.testing as pdt
 import numpy as np
 import json
 import pdb
-import IPython
 # pylint: disable-msg=C0103
 
 
@@ -223,7 +222,6 @@ class TestE2M(unittest.TestCase):
         parser.activities = pd.read_csv('./test/activities.csv', sep='|', index_col=0)
         parser.STR = pd.read_csv('./test/STR.csv', sep='|', index_col=0)
         parser.PRO = pd.read_table('./test/PRO.csv', sep='|', index_col=0)
-        IPython.embed()
 
         parser.complement_labels()
 
