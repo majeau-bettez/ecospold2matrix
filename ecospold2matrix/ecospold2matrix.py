@@ -1885,8 +1885,8 @@ class Ecospold2Matrix(object):
         """
         # Default values
         C = np.array([])
-        IMP = np.array([])
-        IMP_header=np.array([])
+        self.IMP = pd.DataFrame()
+        IMP_header = np.array([])
 
         def pickling(filename, adict, what_it_is, mat):
             """ subfunction that handles creation of binary files """
