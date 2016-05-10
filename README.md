@@ -41,6 +41,11 @@ Dependencies
 - Pandas
 - Numpy
 - Scipy
+- lxml
+- pytz
+- Six
+- xlrd
+- xlwt
 
 Open Source
 ----------
