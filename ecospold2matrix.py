@@ -2398,20 +2398,20 @@ class Ecospold2Matrix(object):
 
         # sheet reading parameters
         hardcoded = [
-                {'name':'FEP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'MEP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'GWP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'ODP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'AP'  , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'POFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'PMFP', 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'IRP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'LOP' , 'rows':5, 'range':'B:M', 'midpoint':'H4:M6'},
-                {'name':'LTP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'WDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'MDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'FDP' , 'rows':5, 'range':'B:J', 'midpoint':'H4:J6'},
-                {'name':'TP'  , 'rows':5, 'range':'B:S', 'midpoint':'H4:S6'}
+                {'name':'FEP' , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
+                {'name':'MEP' , 'rows':5, 'range':'B:P', 'impact_meta':'H4:P6'},
+                {'name':'GWP' , 'rows':5, 'range':'B:P', 'impact_meta':'H4:P6'},
+                {'name':'ODP' , 'rows':5, 'range':'B:Q', 'impact_meta':'H4:Q6'},
+                {'name':'AP'  , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
+                {'name':'POFP', 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
+                {'name':'PMFP', 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
+                {'name':'IRP' , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
+                {'name':'LOP' , 'rows':5, 'range':'B:M,Q:V', 'impact_meta':'H4:M6,Q4:V6'},
+                {'name':'LTP' , 'rows':5, 'range':'B:J,N:P', 'impact_meta':'H4:J6,N4:P6'},
+                {'name':'WDP' , 'rows':5, 'range':'B:J', 'impact_meta':'H4:J6'},
+                {'name':'MDP' , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
+                {'name':'FDP' , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
+                {'name':'TP'  , 'rows':5, 'range':'B:AE', 'impact_meta':'H4:AE6'}
                  ]
         headers = ['comp','subcomp','charName','simaproName','cas','unit']
 
@@ -2427,7 +2427,7 @@ class Ecospold2Matrix(object):
             imp =[]
             for i in range(len(hardcoded)):
                 sheet = hardcoded[i]
-                imp = imp + xlsrange(wb, sheet['name'], sheet['midpoint'])
+                imp = imp + xlsrange(wb, sheet['name'], sheet['impact_meta'])
 
             imp = pd.DataFrame(columns=['perspective','unit', 'impactId'],
                                   data=imp)
