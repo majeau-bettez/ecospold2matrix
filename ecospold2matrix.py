@@ -169,14 +169,14 @@ class Ecospold2Matrix(object):
         # FINAL VARIABLES: SYMMETRIC SYSTEM, NORMALIZED AND UNNORMALIZED
         self.PRO = None             # Process labels, rows/cols of A-matrix
         self.STR = None             # Factors labels, rows extensions
-        self.IMP = None             # impact categories
+        self.IMP = pd.DataFrame([])             # impact categories
         self.A = None               # Normalized Leontief coefficient matrix
         self.F = None               # Normalized factors of production,i.e.,
                                     #       elementary exchange coefficients
         self.Z = None               # Intermediate unnormalized process flows
         self.G_pro = None           # Unnormalized Process factor requirements
 
-        self.C = None               # characterisation matrix
+        self.C = pd.DataFrame([])               # characterisation matrix
 
         # Final variables, unallocated and unnormalized inventory
         self.U = None               # Table of use of products by activities
@@ -1880,10 +1880,8 @@ class Ecospold2Matrix(object):
             None
 
         """
-        # Default values
-        C = np.array([])
-        IMP = np.array([])
-        IMP_header=np.array([])
+        # TODO: include characterisation factors in all formats and also
+        # non-normalized
 
         def pickling(filename, adict, what_it_is, mat):
             """ subfunction that handles creation of binary files """
@@ -1907,7 +1905,7 @@ class Ecospold2Matrix(object):
                 mat=False, for_arda_background=False):
             """ nested function that prepares dictionary for symmetric,
             normalized (coefficient) system description file """
-            
+
             if not for_arda_background:
                 adict = {'PRO': PRO,
                          'STR': STR,
@@ -1964,7 +1962,12 @@ class Ecospold2Matrix(object):
             file_pr = os.path.join(self.out_dir,
                                    self.project_name + format_name)
             if self.A is not None:
-                pickle_symm_norm(PRO=self.PRO, STR=self.STR, A=self.A, F=self.F)
+                pickle_symm_norm(PRO=self.PRO,
+                                 STR=self.STR,
+                                 IMP=self.IMP,
+                                 A=self.A,
+                                 F=self.F,
+                                 C=self.C)
             if self.Z is not None:
                 pickle_symm_scaled(self.PRO, self.STR, self.Z, self.G_pro)
             if self.U is not None:
@@ -1980,9 +1983,12 @@ class Ecospold2Matrix(object):
             file_pr = os.path.join(self.out_dir,
                                    self.project_name + format_name)
             if self.A is not None:
-                A = self.A.to_sparse()
-                F = self.F.to_sparse()
-                pickle_symm_norm(PRO=self.PRO, STR=self.STR, A=A, F=F)
+                pickle_symm_norm(PRO=self.PRO,
+                                 STR=self.STR,
+                                 IMP=self.IMP,
+                                 A=self.A.to_sparse(),
+                                 F=self.F.to_sparse(),
+                                 C=self.C.to_sparse())
             if self.Z is not None:
                 Z = self.Z.to_sparse()
                 G_pro = self.G_pro.to_sparse()
@@ -1997,7 +2003,7 @@ class Ecospold2Matrix(object):
                            self.STR,
                            U, V, V_prodVol, G_act)
 
-        # save as sparse Matrices (both pickled and mat-files)  
+        # save as sparse Matrices (both pickled and mat-files)
         format_name = 'SparseMatrix'
         for_arda_background=False
         if 'SparseMatrixForArda' in file_formats:
@@ -2013,14 +2019,14 @@ class Ecospold2Matrix(object):
             STR = self.STR.fillna('').values
             IMP = self.IMP.fillna('').values
             PRO_header = self.PRO.columns.values
-            PRO_header = PRO_header.reshape((1,len(PRO_header)))
+            PRO_header = PRO_header.reshape((1, -1))
             STR_header = self.STR.columns.values
-            STR_header = STR_header.reshape((1, len(STR_header)))
+            STR_header = STR_header.reshape((1, -1))
 
-            if self.C is not None:
-                C = scipy.sparse.csc_matrix(self.C.fillna(0))
-                IMP_header = self.IMP.columns.values
-                IMP_header = IMP_header.reshape((1, len(IMP_header)))
+            C = scipy.sparse.csc_matrix(self.C.fillna(0))
+            IMP_header = self.IMP.columns.values
+            IMP_header = IMP_header.reshape((1, -1))
+
             if self.A is not None:
                 A = scipy.sparse.csc_matrix(self.A.fillna(0))
                 F = scipy.sparse.csc_matrix(self.F.fillna(0))
@@ -2399,15 +2405,18 @@ class Ecospold2Matrix(object):
         # sheet reading parameters
         hardcoded = [
                 {'name':'FEP' , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
-                {'name':'MEP' , 'rows':5, 'range':'B:P', 'impact_meta':'H4:P6'},
+                {'name':'MEP' , 'rows':5, 'range':'B:J', 'impact_meta':'H4:J6'},
                 {'name':'GWP' , 'rows':5, 'range':'B:P', 'impact_meta':'H4:P6'},
-                {'name':'ODP' , 'rows':5, 'range':'B:Q', 'impact_meta':'H4:Q6'},
+                {'name':'ODP' , 'rows':5, 'range':'B:J', 'impact_meta':'H4:J6'},
+                {'name':'ODP' , 'rows':5, 'range':'B:G,N:P', 'impact_meta':'N4:P6'},
                 {'name':'AP'  , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
                 {'name':'POFP', 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
                 {'name':'PMFP', 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
                 {'name':'IRP' , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
-                {'name':'LOP' , 'rows':5, 'range':'B:M,Q:V', 'impact_meta':'H4:M6,Q4:V6'},
-                {'name':'LTP' , 'rows':5, 'range':'B:J,N:P', 'impact_meta':'H4:J6,N4:P6'},
+                {'name':'LOP' , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
+                {'name':'LOP' , 'rows':5, 'range':'B:G,Q:V', 'impact_meta':'Q4:V6'},
+                {'name':'LTP' , 'rows':5, 'range':'B:J', 'impact_meta':'H4:J6'},
+                {'name':'LTP' , 'rows':5, 'range':'B:G,N:P', 'impact_meta':'N4:P6'},
                 {'name':'WDP' , 'rows':5, 'range':'B:J', 'impact_meta':'H4:J6'},
                 {'name':'MDP' , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
                 {'name':'FDP' , 'rows':5, 'range':'B:M', 'impact_meta':'H4:M6'},
@@ -2425,12 +2434,12 @@ class Ecospold2Matrix(object):
                     " 1 column in FDP sheet of {}".format(characterisation_file))
             wb = xlrd.open_workbook(characterisation_file)
             imp =[]
-            for i in range(len(hardcoded)):
-                sheet = hardcoded[i]
+            for sheet in hardcoded:
+                print(imp)
                 imp = imp + xlsrange(wb, sheet['name'], sheet['impact_meta'])
-
             imp = pd.DataFrame(columns=['perspective','unit', 'impactId'],
-                                  data=imp)
+                               data=imp)
+            #imp.impactId = imp.impactId.str.replace(' ', '_')
             imp.impactId = imp.impactId.str.replace('(', '_')
             imp.impactId = imp.impactId.str.replace(')', '')
 
