@@ -5,10 +5,6 @@ import pandas.util.testing as pdt
 import numpy as np
 import json
 import pdb
-try:
-    import IPython
-except:
-    pass # Really just useful in debugging
 # pylint: disable-msg=C0103
 
 

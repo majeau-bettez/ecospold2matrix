@@ -17,17 +17,29 @@ Basic functionality
 - Optionally, scale elementary and intermediate flows to recorded production volumes
 - Save matrices to various different formats
 
+Installation
+------------
+
+Now the code can be installed with:
+
+`pip install git+git://github.com/repo_owner/ecospold2matrix#egg=ecospold2matrix`
+    
+where 
+* `repo_owner` could be: majeau-bettez or tngTUDOR or any fork of the project
 
 
 Simple Use case
 ----------------
+```python
 	import ecospold2matrix as e2m
 
 	# Define parser object, with default and project-specific parameters
+	# Make sure that the path database/location holds the datasets and MasterData folders
 	parser = e2m.Ecospold2Matrix('/database/location/', project_name='eco31_cons', positive_waste=True)
 
 	# Assemble matrices, including scaled-up flow matrices, and save to csv-files
 	parser.ecospold_to_Leontief(fileformats=['csv'], with_absolute_flows=True)
+```	
 
 Short Demo
 ----------
@@ -41,6 +53,10 @@ Dependencies
 - Pandas
 - Numpy
 - Scipy
+- lxml
+- Six
+- xlrd
+- xlwt
 
 Open Source
 ----------

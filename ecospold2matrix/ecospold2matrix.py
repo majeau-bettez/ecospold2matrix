@@ -38,7 +38,6 @@ Credits:
 
 
 """
-import IPython
 import os
 import glob
 import subprocess
@@ -58,8 +57,8 @@ import re
 import xlrd
 import xlwt
 import copy
+from os import path
 # pylint: disable-msg=C0103
-
 
 
 class Ecospold2Matrix(object):
@@ -272,9 +271,13 @@ class Ecospold2Matrix(object):
         def read_pandas_csv(path):
             tmp = pd.read_csv(path, sep='|', comment='#')
             return tmp.where(pd.notnull(tmp), None)
-        self._cas_conflicts = read_pandas_csv('parameters/cas_conflicts.csv')
-        self._synonyms = read_pandas_csv('parameters/synonyms.csv')
-        self._custom_factors = read_pandas_csv('parameters/custom_factors.csv')
+        here = path.abspath(path.dirname(__file__))
+        self._cas_conflicts = read_pandas_csv(
+                path.join(here,'parameters/cas_conflicts.csv'))
+        self._synonyms = read_pandas_csv(
+                path.join(here,'parameters/synonyms.csv'))
+        self._custom_factors = read_pandas_csv(
+                path.join(here,'parameters/custom_factors.csv'))
         # POTENTIAL OTHER ISSUES
         ## Names that don't fit with their cas numbers
         #['2-butenal, (2e)-', '123-73-9', '2-butenal',
@@ -2188,7 +2191,8 @@ class Ecospold2Matrix(object):
         c.execute('PRAGMA foreign_keys = ON;')
         self.conn.commit()
 
-        with open('initialize_database.sql','r') as f:
+        here = path.abspath(path.dirname(__file__))
+        with open(path.join(here,'initialize_database.sql'),'r') as f:
             c.executescript(f.read())
         self.conn.commit()
 
