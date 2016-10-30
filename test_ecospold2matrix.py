@@ -5,11 +5,14 @@ import pandas.util.testing as pdt
 import numpy as np
 import json
 import pdb
-import IPython
+try:
+    import IPython
+except:
+    pass # Really just useful in debugging
 # pylint: disable-msg=C0103
 
 
-# TODO: make sure order is  respected in final export
+# TODO: make sure order is respected in final export
 #[Apos, Fpos] = e2m.normalize_flows(Z, G, output, True)
 
 class TestE2M(unittest.TestCase):
@@ -188,8 +191,6 @@ class TestE2M(unittest.TestCase):
         parser = e2m.Ecospold2Matrix(self.sysdir, self.name)
         parser.build_PRO()
 
-        return(PRO0, parser)
-
         pdt.assert_frame_equal(PRO0, parser.PRO)
 
 
@@ -205,8 +206,6 @@ class TestE2M(unittest.TestCase):
         parser = e2m.Ecospold2Matrix(self.sysdir, self.name)
         parser.extract_flows()
 
-        return inflows0, outflows0, elementary_flows0, parser
-
         self.assert_same_but_roworder(inflows0, parser.inflows, 0)
         self.assert_same_but_roworder(outflows0, parser.outflows,0)
         self.assert_same_but_roworder(elementary_flows0,
@@ -220,10 +219,10 @@ class TestE2M(unittest.TestCase):
         parser = e2m.Ecospold2Matrix(self.sysdir, self.name)
         products0 = pd.DataFrame.from_csv('./test/products.csv', sep='|')
         parser.products = products0.rename(columns={'productId.1':'productId'})
-        parser.activities = pd.read_csv('./test/activities.csv', sep='|', index_col=0)
+        parser.activities = pd.read_csv('./test/activities.csv',
+                                        sep='|', index_col=0)
         parser.STR = pd.read_csv('./test/STR.csv', sep='|', index_col=0)
         parser.PRO = pd.read_table('./test/PRO.csv', sep='|', index_col=0)
-        IPython.embed()
 
         parser.complement_labels()
 

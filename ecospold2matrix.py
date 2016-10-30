@@ -343,7 +343,8 @@ class Ecospold2Matrix(object):
         database_name = self.project_name + '_' + self.__DB_CHARACTERISATION
         os.system('rm ' + database_name)
         try:
-            self.conn = sqlite3.connect(self.project_name + '_' + self.__DB_CHARACTERISATION)
+            self.conn = sqlite3.connect(
+                    self.project_name + '_' + self.__DB_CHARACTERISATION)
             self.initialize_database()
         except:
             self.log.warning("Could not establish connection to database")

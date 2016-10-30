@@ -40,7 +40,7 @@
       </macroEconomicScenario>
     </activityDescription>
     <flowData>
-      <intermediateExchange id="2e07420e-30fd-46d8-8361-108bbb61b36b" unitId="de5b3c87-0e35-4fb0-9765-4f3ba34c99e5" amount="0.0000050" intermediateExchangeId="842e3faf-8de9-47a3-bfac-606edc0adbd3" activityLinkId="40011095-059d-465e-bd79-da3b6b3b8308">
+      <intermediateExchange id="2e07420e-30fd-46d8-8361-108bbb61b36b" unitId="de5b3c87-0e35-4fb0-9765-4f3ba34c99e5" amount="0.0000050" intermediateExchangeId="842e3faf-8de9-47a3-bfac-606edc0aFAKE" activityLinkId="40011095-059d-465e-bd79-da3b6b3b8308">
         <name xml:lang="en">furnace, wood chips, average storage area, 1000kW</name>
         <unitName xml:lang="en">m3</unitName>
         <comment xml:lang="en">(4,5,3,3,4,5); Estimates based on published data 1994</comment>
@@ -51,7 +51,7 @@
         </classification>
         <inputGroup>5</inputGroup>
       </intermediateExchange>
-      <intermediateExchange id="7795c9d4-f516-4c25-803a-450ab02fa920" unitId="2f4daad7-5331-4f14-930c-d8bca924557d" amount="1" intermediateExchangeId="36dc50ef-017c-4d24-af51-f12ef802095e" productionVolumeAmount="43440000000">
+      <intermediateExchange id="7795c9d4-f516-4c25-803a-450ab02fa920" unitId="2f4daad7-5331-4f14-930c-d8bca924557d" amount="1" intermediateExchangeId="36dc50ef-017c-4d24-af51-f12ef802FAKE" productionVolumeAmount="43440000000">
         <name xml:lang="en">transport, pipeline, offshore, long distance, natural gas</name>
         <unitName xml:lang="en">metric ton*km</unitName>
         <comment>EcoSpold01Location=NO</comment>

@@ -41,7 +41,7 @@
       </macroEconomicScenario>
     </activityDescription>
     <flowData>
-      <intermediateExchange id="b6c3b611-d4c4-4a24-85fe-341af89c5a3e" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" amount="1.81284" intermediateExchangeId="692b4f7e-9e79-4f69-b22f-b66f68f2f9cc" activityLinkId="c002d7b0-0f0f-4e3e-b600-2acd705a8506">
+      <intermediateExchange id="b6c3b611-d4c4-4a24-85fe-341af89c5a3e" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" amount="1.81284" intermediateExchangeId="692b4f7e-9e79-4f69-b22f-b66f68f2FAKE" activityLinkId="c002d7b0-0f0f-4e3e-b600-2acd705a8506">
         <name xml:lang="en">straw, organic</name>
         <unitName xml:lang="en">kg</unitName>
         <comment xml:lang="en">own assumption</comment>
@@ -52,7 +52,7 @@
         </classification>
         <inputGroup>5</inputGroup>
       </intermediateExchange>
-      <intermediateExchange id="925eb768-98aa-46c8-a841-d863532512e6" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" amount="0.42" intermediateExchangeId="36dc50ef-017c-4d24-af51-f12ef802095e" activityLinkId="d0003dc3-4bd3-4422-9c40-8265239e14ff" productionVolumeAmount="6">
+      <intermediateExchange id="925eb768-98aa-46c8-a841-d863532512e6" unitId="487df68b-4994-4027-8fdc-a4dc298257b7" amount="0.42" intermediateExchangeId="36dc50ef-017c-4d24-af51-f12ef802FAKE" activityLinkId="d0003dc3-4bd3-4422-9c40-8265239e14ff" productionVolumeAmount="6">
         <name xml:lang="en">transport, pipeline, offshore, long distance, natural gas</name>
         <unitName xml:lang="en">kg</unitName>
         <comment>EcoSpold01Location=CH</comment>
@@ -64,7 +64,7 @@
         </classification>
         <inputGroup>5</inputGroup>
       </intermediateExchange>
-      <intermediateExchange id="56d5e16c-c59b-4c3b-b44e-e23c98e6fdda" unitId="5b972631-34e3-4db7-a615-f6931770a0cb" amount="1" intermediateExchangeId="842e3faf-8de9-47a3-bfac-606edc0adbd3" productionVolumeAmount="0.033667542238713">
+      <intermediateExchange id="56d5e16c-c59b-4c3b-b44e-e23c98e6fdda" unitId="5b972631-34e3-4db7-a615-f6931770a0cb" amount="1" intermediateExchangeId="842e3faf-8de9-47a3-bfac-606edc0aFAKE" productionVolumeAmount="0.033667542238713">
         <name xml:lang="en">furnace, wood chips, average storage area, 1000kW</name>
         <unitName xml:lang="en">unit</unitName>
         <comment>EcoSpold01Location=CH</comment>
