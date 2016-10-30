@@ -79,6 +79,9 @@ class Ecospold2Matrix(object):
     __ACTIVITYINDEX = 'ActivityIndex.xml'
     __DB_CHARACTERISATION = 'characterisation.db'
     rtolmin = 1e-16  # 16 significant digits being roughly the limit of float64
+    __TechnologyLevels = pd.Series(
+            ['Undefined', 'New', 'Modern', 'Current', 'Old', 'Outdated'],
+            index=[0, 1, 2, 3, 4, 5])
 
     def __init__(self, sys_dir, project_name, out_dir='.', lci_dir=None,
                  positive_waste=False, prefer_pickles=False, nan2null=False,
@@ -1033,70 +1036,63 @@ class Ecospold2Matrix(object):
             # Parse xml tree
             root = ET.parse(sfile).getroot()
 
-            try:
+            # Record product Id
+            PRO.ix[file_index, 'productId'] = file_index.split('_')[1]
 
-                # Record product Id
-                PRO.ix[file_index, 'productId'] = file_index.split('_')[1]
+            # Find activity dataset
+            child_ds = root.find(self.__PRE + 'childActivityDataset')
+            if child_ds is None:
+                child_ds = root.find(self.__PRE + 'activityDataset')
+            activity_ds = child_ds.find(self.__PRE + 'activityDescription')
 
-                # Find activity dataset
-                child_ds = root.find(self.__PRE + 'childActivityDataset')
-                if child_ds is None:
-                    child_ds = root.find(self.__PRE + 'activityDataset')
-                activity_ds = child_ds.find(self.__PRE + 'activityDescription')
+            # Loop through activity dataset
+            for entry in activity_ds:
 
-                # Loop through activity dataset
-                for entry in activity_ds:
+                # Get name, id, etc
+                if entry.tag == self.__PRE + 'activity':
+                    PRO.ix[file_index, 'activityId'] = entry.attrib['id']
+                    PRO.ix[file_index, 'activityName'] = entry.find(
+                            self.__PRE + 'activityName').text
+                    continue
 
-                    # Get name, id, etc
-                    if entry.tag == self.__PRE + 'activity':
-                        PRO.ix[file_index, 'activityId'] = entry.attrib['id']
-                        PRO.ix[file_index, 'activityName'] = entry.find(
-                                self.__PRE + 'activityName').text
-                        continue
+                # Get classification codes
+                if entry.tag == self.__PRE + 'classification':
+                    if 'ISIC' in entry.find(self.__PRE +
+                                            'classificationSystem').text:
+                        PRO.ix[file_index, 'ISIC'] = entry.find(
+                                   self.__PRE + 'classificationValue').text
 
-                    # Get classification codes
-                    if entry.tag == self.__PRE + 'classification':
-                        if 'ISIC' in entry.find(self.__PRE +
-                                                'classificationSystem').text:
-                            PRO.ix[file_index, 'ISIC'] = entry.find(
-                                       self.__PRE + 'classificationValue').text
+                    if 'EcoSpold' in entry.find(
+                                 self.__PRE + 'classificationSystem').text:
 
-                        if 'EcoSpold' in entry.find(
-                                     self.__PRE + 'classificationSystem').text:
+                        PRO.ix[file_index, 'EcoSpoldCategory'
+                              ] = entry.find(self.__PRE +
+                                              'classificationValue').text
+                    continue
 
-                            PRO.ix[file_index, 'EcoSpoldCategory'
-                                  ] = entry.find(self.__PRE +
-                                                  'classificationValue').text
-                        continue
+                # Get geography
+                if entry.tag == self.__PRE + 'geography':
+                    PRO.ix[file_index, 'geography'
+                          ] = entry.find(self.__PRE + 'shortname').text
+                    continue
 
-                    # Get geography
-                    if entry.tag == self.__PRE + 'geography':
-                        PRO.ix[file_index, 'geography'
-                              ] = entry.find(self.__PRE + 'shortname').text
-                        continue
-
-                    # Get Technology
+                # Get Technology
+                try:
                     if entry.tag == self.__PRE + 'technology':
                         PRO.ix[file_index, 'technologyLevel'
                               ] = entry.attrib['technologyLevel']
                         continue
+                except:
+                    # Apparently it is not a mandatory field in ecospold2.
+                    # Skip if absent
+                    pass
 
-                    # Find MacroEconomic scenario
-                    if entry.tag == self.__PRE + 'macroEconomicScenario':
-                        PRO.ix[file_index, 'macroEconomicScenario'
-                              ] = entry.find(self.__PRE + 'name').text
-                        continue
-            except:
-                # Log if something goes wrong
-                msg_notParsed = 'File {} could not be parsed'
 
-                # log failure
-                self.log.warn(msg_notParsed.format(str(sfile)))
-
-                # Record failure directly in PRO
-                PRO.ix[file_index, 'activityId'] = str(file_index)
-                PRO.ix[file_index,
-                       'activityName'] = msg_notParsed.format(str(sfile))
+                # Find MacroEconomic scenario
+                if entry.tag == self.__PRE + 'macroEconomicScenario':
+                    PRO.ix[file_index, 'macroEconomicScenario'
+                          ] = entry.find(self.__PRE + 'name').text
+                    continue
 
             # quality check of id and index
             if file_index.split('_')[0] != PRO.ix[file_index, 'activityId']:
@@ -1104,7 +1100,10 @@ class Ecospold2Matrix(object):
                               ' xml data are different'.format(str(sfile)))
 
         # Final touches and save to self
-        PRO['technologyLevel'] = PRO['technologyLevel'].astype(int)
+        PRO['technologyLevel'] = PRO['technologyLevel'].fillna(0).astype(int)
+        for i in self.__TechnologyLevels.index:
+                bo = PRO['technologyLevel'] == i
+                PRO.ix[bo, 'technologyLevel'] = self.__TechnologyLevels[i]
         self.PRO = PRO.sort(columns=self.PRO_order)
 
     def extract_old_labels(self, old_dir, sep='|'):
@@ -1402,7 +1401,8 @@ class Ecospold2Matrix(object):
 
             # Insert dummy productions
             for i, row in miss.iterrows():
-                self.log.warn('New dummy activity:', i)
+                self.log.warn('New dummy activity: {}'.format(i))
+
 
                 # add row to self.PRO
                 self.PRO.ix[i, copied_cols] = row[copied_cols]
