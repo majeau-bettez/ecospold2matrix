@@ -442,11 +442,17 @@ class Ecospold2Matrix(object):
 
         if characterisation_file is not None:
             print("starting characterisation")
-            self.process_inventory_elementary_flows()
-            self.read_characterisation(characterisation_file)
-            self.populate_complementary_tables()
-            self.characterize_flows()
-            self.generate_characterized_extensions()
+            if 'LCIA_implementation' in characterisation_file:
+                self.log.info("Characterisation file seems to be ecoinvent"
+                              " LCIA implementation. Will apply simple name"
+                              " matching")
+                self.simple_characterisation_matching(characterisation_file)
+            else:
+                self.process_inventory_elementary_flows()
+                self.read_characterisation(characterisation_file)
+                self.populate_complementary_tables()
+                self.characterize_flows()
+                self.generate_characterized_extensions()
 
         if ardaidmatching_file:
             self.make_compatible_with_arda(ardaidmatching_file)
@@ -934,8 +940,6 @@ class Ecospold2Matrix(object):
         -------
 
         Generates: self.STR:    DataFrame with stressor Id's for index
-        ----------
-
         Credit:
         -------
 
@@ -967,12 +971,13 @@ class Ecospold2Matrix(object):
         # organize in pandas DataFrame
         STR = pd.DataFrame(el_list)
         STR.index = STR['id']
-        STR = STR.reindex_axis(['name',
+        STR = STR.reindex_axis(['id',
+                                'name',
                                 'unit',
                                 'cas',
                                 'comp',
                                 'subcomp'], axis=1)
-        self.STR = STR.sort(columns=self.STR_order)
+        self.STR = STR.sort_values(by=self.STR_order)
 
         # Log event
         sha1 = self.__hash_file(fp)
@@ -1108,7 +1113,7 @@ class Ecospold2Matrix(object):
         for i in self.__TechnologyLevels.index:
                 bo = PRO['technologyLevel'] == i
                 PRO.ix[bo, 'technologyLevel'] = self.__TechnologyLevels[i]
-        self.PRO = PRO.sort(columns=self.PRO_order)
+        self.PRO = PRO.sort_values(by=self.PRO_order)
 
     def extract_old_labels(self, old_dir, sep='|'):
         """ Read in old PRO, STR and IMP labels csv-files from directory
@@ -1473,8 +1478,8 @@ class Ecospold2Matrix(object):
         self.PRO = self.PRO.drop('unitId', axis=1).set_index('index')
 
         # Re-sort processes (in fix-methods altered order/inserted rows)
-        self.PRO = self.PRO.sort(columns=self.PRO_order)
-        self.STR = self.STR.sort(columns=self.STR_order)
+        self.PRO = self.PRO.sort_values(by=self.PRO_order)
+        self.STR = self.STR.sort_values(by=self.STR_order)
 
     def build_AF(self):
         """
@@ -2009,10 +2014,16 @@ class Ecospold2Matrix(object):
 
         # save as sparse Matrices (both pickled and mat-files)
         format_name = 'SparseMatrix'
-        for_arda_background=False
-        if 'SparseMatrixForArda' in file_formats:
-            for_arda_background=True
 
+        # Check if we need special formatting for ARDA software
+        for_arda_background=False
+        try:
+            if 'SparseMatrixForArda' in file_formats:
+                for_arda_background=True
+        except TypeError:
+            pass
+
+        # Proceed
         if (file_formats is None
                 or format_name in file_formats
                 or for_arda_background):
@@ -2063,6 +2074,9 @@ class Ecospold2Matrix(object):
                 os.makedirs(csv_dir)
             self.PRO.to_csv(os.path.join(csv_dir, 'PRO.csv'))
             self.STR.to_csv(os.path.join(csv_dir, 'STR.csv'))
+            if self.C is not None:
+                self.C.to_csv(os.path.join(csv_dir, 'C.csv'), sep='|')
+                self.IMP.to_csv(os.path.join(csv_dir, 'IMP.csv'), sep='|')
             if self.A is not None:
                 self.A.to_csv(os.path.join(csv_dir, 'A.csv'), sep='|')
                 self.F.to_csv(os.path.join(csv_dir, 'F.csv'), sep='|')
@@ -2182,6 +2196,93 @@ class Ecospold2Matrix(object):
     # =========================================================================
     # Characterisation factors matching
     # =========================================================================
+    def simple_characterisation_matching(self, characterisation_file):
+
+        # Useful stuff
+        c = self.conn.cursor()
+        non_decimal = re.compile(r'[^0-9]')
+        basename = os.path.basename
+
+        def clean_up_columns(df):
+            """ Remove spaces, whitespace, and periods from column names
+                Also, return a list of all numbers in columns
+            """
+            df.columns = [x.strip().replace(' ', '_') for x in df.columns]
+            col_version_numbers =  [non_decimal.sub('', x) for x in df.columns]
+            df.columns = [x.replace('.', '') for x in df.columns]
+            return df, col_version_numbers
+
+        # Read and clean units
+        units = pd.read_excel(characterisation_file, 'units')
+        units, __ = clean_up_columns(units)
+
+        # Read and clean characterisation factors
+        cf = pd.read_excel(characterisation_file, 'CFs')
+        cf, col_version_numbers = clean_up_columns(cf)
+
+
+        # Try to find column with the matching CF and filename version number
+        # (e.g. CF 3.3 for LCIA_Implementation_3.3.xlsx)
+        file_version = non_decimal.sub('', basename(characterisation_file))
+        try:
+            cf_col = col_version_numbers.index(file_version)
+            msg = "Will use column {}, named {}, for characterisation factors"
+            self.log.info(msg.format(cf_col, cf.columns[cf_col]))
+        except:
+            cf_col = -3
+            msg = ("Could not match file version {} with CF versions."
+                   " By default will use {}.")
+            self.log.warning(msg.format(file_version, cf.columns[cf_col]))
+
+        # Rename characterisation factor column
+        cols = cf.columns.tolist()
+        cols[cf_col] = 'CF'
+        cf.columns = cols
+        sep = '; '
+
+        # Export to sqlite for matching
+        cf.to_sql('char', self.conn, if_exists='replace')
+        units.to_sql('units', self.conn, if_exists='replace')
+        self.STR.to_sql('stressors',
+                        self.conn,
+                        index_label='stressorId',
+                        if_exists='replace')
+
+        # Complement ecoinvent elementary flows (stressors s) with matching
+        # characterisation factors (char c) and its units (units u)
+        sql_cmd = """ SELECT s.name, s.comp, s.subcomp, s.unit, s.stressorId,
+                             c.method, c.category, c.indicator, c.CF,
+                             u.impact_score_unit
+                      FROM stressors s
+                      LEFT JOIN char c
+                      ON c.name = s.name AND c.compartment=s.comp
+                                         AND c.subcompartment=s.subcomp
+                                         AND s.unit=c.exchange_unit
+                      LEFT JOIN units u
+                      ON u.method=c.method AND u.category=c.category
+                                           AND u.indicator=c.indicator"""
+        C_long = pd.read_sql(sql_cmd, self.conn)
+
+        # Generate IMP labels
+        C_long['impact_label'] = (C_long.method + sep
+                                  + C_long.category + sep
+                                  + C_long.impact_score_unit)
+
+        self.IMP = C_long[['impact_label',
+                           'method',
+                           'category',
+                           'impact_score_unit']].drop_duplicates()
+        self.IMP.set_index('impact_label', inplace=True)
+
+        # Pivot and reindex to generate characterisation matrix
+        self.C = pd.pivot_table(C_long,
+                                values='CF',
+                                columns='stressorId',
+                                index='impact_label')
+
+        self.C = self.C.reindex(self.IMP.index).reindex_axis(self.STR.index, 1)
+
+
     def initialize_database(self):
         """ Define tables of SQlite database for matching stressors to
         characterisation factors
@@ -3416,7 +3517,7 @@ class Ecospold2Matrix(object):
 
 
         # Change impact order for backward compatibility
-        self.IMP.sort('ardaid', inplace=True)
+        self.IMP.sort_values(by='ardaid', inplace=True)
         self.C = self.C.reindex(index=self.IMP.index)
 
 
