@@ -5,6 +5,10 @@ import pandas.util.testing as pdt
 import numpy as np
 import json
 import pdb
+try:
+    import IPython
+except:
+    pass
 # pylint: disable-msg=C0103
 
 
@@ -356,7 +360,11 @@ class TestE2M(unittest.TestCase):
         pdt.assert_frame_equal(parser.V, V0)
         pdt.assert_frame_equal(parser.G_act, G0)
 
+    def test_whole_leontief_run(self):
+        """ Not technically a unit test... More a
+        it-runs-through-and-does-not-crash integration test"""
 
+        parser = e2m.Ecospold2Matrix(self.sysdir, self.name)
 
 if __name__ == '__main__':
     unittest.main()

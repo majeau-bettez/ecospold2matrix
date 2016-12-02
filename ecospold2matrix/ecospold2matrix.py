@@ -38,6 +38,7 @@ Credits:
 
 
 """
+import IPython
 import os
 import glob
 import subprocess
@@ -1970,6 +1971,8 @@ class Ecospold2Matrix(object):
 
             file_pr = os.path.join(self.out_dir,
                                    self.project_name + format_name)
+            self.log.info("Exporting data as {} in {}".format(format_name,
+                                                              file_pr))
             if self.A is not None:
                 pickle_symm_norm(PRO=self.PRO,
                                  STR=self.STR,
@@ -1991,6 +1994,8 @@ class Ecospold2Matrix(object):
 
             file_pr = os.path.join(self.out_dir,
                                    self.project_name + format_name)
+            self.log.info("Exporting data as {} in {}".format(format_name,
+                                                              file_pr))
             if self.A is not None:
                 pickle_symm_norm(PRO=self.PRO,
                                  STR=self.STR,
@@ -2030,6 +2035,8 @@ class Ecospold2Matrix(object):
 
             file_pr = os.path.join(self.out_dir,
                                    self.project_name + format_name)
+            self.log.info("Exporting data as {} in {}".format(format_name,
+                                                              file_pr))
             PRO = self.PRO.fillna('').values
             STR = self.STR.fillna('').values
             IMP = self.IMP.fillna('').values
@@ -2070,6 +2077,8 @@ class Ecospold2Matrix(object):
         if file_formats is None or format_name in file_formats:
 
             csv_dir = os.path.join(self.out_dir, 'csv')
+            self.log.info("Exporting data as {} in {}".format(format_name,
+                                                              csv_dir))
             if not os.path.exists(csv_dir):
                 os.makedirs(csv_dir)
             self.PRO.to_csv(os.path.join(csv_dir, 'PRO.csv'))
@@ -2240,6 +2249,7 @@ class Ecospold2Matrix(object):
         cf.columns = cols
         sep = '; '
 
+        self.log.info("Starting characterisation matching")
         # Export to sqlite for matching
         cf.to_sql('char', self.conn, if_exists='replace')
         units.to_sql('units', self.conn, if_exists='replace')
@@ -2266,11 +2276,13 @@ class Ecospold2Matrix(object):
         # Generate IMP labels
         C_long['impact_label'] = (C_long.method + sep
                                   + C_long.category + sep
+                                  + C_long.indicator + sep
                                   + C_long.impact_score_unit)
 
         self.IMP = C_long[['impact_label',
                            'method',
                            'category',
+                           'indicator',
                            'impact_score_unit']].drop_duplicates()
         self.IMP.set_index('impact_label', inplace=True)
 
@@ -2281,6 +2293,7 @@ class Ecospold2Matrix(object):
                                 index='impact_label')
 
         self.C = self.C.reindex(self.IMP.index).reindex_axis(self.STR.index, 1)
+        self.log.info("Characterisation matching done. C matrix created")
 
 
     def initialize_database(self):
@@ -3382,7 +3395,7 @@ class Ecospold2Matrix(object):
                            index='impactId').reindex_axis(self.STR.index, 1)
         self.C = self.C.reindex_axis(self.IMP.index, 0).fillna(0)
 
-        # Reorganize elementary flows to follow STR order
+        # Reorganize elementary flows to follow STR order
         Forg = self.F.fillna(0)
         self.F = self.F.reindex_axis(self.STR.ix[:, 'dsid'].values, 0).fillna(0)
         self.F.index = self.STR.index.copy()
