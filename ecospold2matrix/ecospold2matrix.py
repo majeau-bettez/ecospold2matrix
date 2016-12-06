@@ -45,11 +45,13 @@ import subprocess
 from lxml import objectify
 import xml.etree.ElementTree as ET
 import pandas as pd
+_df = pandas.DataFrame
 import numpy as np
 import scipy.sparse
 import scipy.io
 import logging
 import pickle
+import gzip
 import csv
 import shelve
 import hashlib
@@ -967,18 +969,17 @@ class Ecospold2Matrix(object):
         # Extract data from file
         with open(fp, 'r', encoding="utf-8") as fh:
             root = objectify.parse(fh).getroot()
-            el_list = [extract_metadata(ds) for ds in root.iterchildren()]
+            self.STR = _df([extract_metadata(i) for i in root.iterchildren()])
 
         # organize in pandas DataFrame
-        STR = pd.DataFrame(el_list)
-        STR.index = STR['id']
-        STR = STR.reindex_axis(['id',
-                                'name',
-                                'unit',
-                                'cas',
-                                'comp',
-                                'subcomp'], axis=1)
-        self.STR = STR.sort_values(by=self.STR_order)
+        self.STR.index = self.STR['id']
+        self.STR = self.STR.reindex_axis(['id',
+                                          'name',
+                                          'unit',
+                                          'cas',
+                                          'comp',
+                                          'subcomp'], axis=1)
+        self.STR = self.STR.sort_values(by=self.STR_order)
 
         # Log event
         sha1 = self.__hash_file(fp)
@@ -1511,37 +1512,40 @@ class Ecospold2Matrix(object):
 
         # By pivot tables, arrange all intermediate and elementary flows as
         # matrices
-        z = pd.pivot(
+        self.log.info("Starting to assemble the matrices")
+        self.A = pd.pivot(
                 self.inflows['sourceActivityId'] + '_' + self.inflows['productId'],
                 self.inflows['fileId'],
                 self.inflows['amount']
                 ).reindex(index=self.PRO.index, columns=self.PRO.index)
 
-        g = pd.pivot_table(self.elementary_flows,
+        self.F = pd.pivot_table(self.elementary_flows,
                            values='amount',
                            index='elementaryExchangeId',
                            columns='fileId').reindex(index=self.STR.index,
                                                      columns=self.PRO.index)
 
         # Take care of sign convention for waste
+        self.log.info("Starting normalizing matrices")
         if self.positive_waste:
             sign_changer = self.outflows['amount'] / self.outflows['amount'].abs()
-            z = z.mul(sign_changer, axis=0)
+            self.A = self.A.mul(sign_changer, axis=0)
             col_normalizer = 1 / self.outflows['amount'].abs()
         else:
             col_normalizer = 1 / self.outflows['amount']
 
         # Normalize flows
-        A = z.mul(col_normalizer, axis=1)
-        F = g.mul(col_normalizer, axis=1)
-
-        if self.nan2null:
-            A.fillna(0, inplace=True)
-            F.fillna(0, inplace=True)
-
         # Reorder all rows and columns to fit labels
-        self.A = A.reindex(index=self.PRO.index, columns=self.PRO.index)
-        self.F = F.reindex(index=self.STR.index, columns=self.PRO.index)
+        self.A = self.A.mul(col_normalizer, axis=1).reindex(
+                                                        index=self.PRO.index,
+                                                        columns=self.PRO.index)
+        self.F = self.F.mul(col_normalizer, axis=1).reindex(
+                                                        index=self.STR.index,
+                                                        columns=self.PRO.index)
+        self.log.info("fillna")
+        if self.nan2null:
+            self.A.fillna(0, inplace=True)
+            self.F.fillna(0, inplace=True)
 
     def scale_up_AF(self):
         """ Calculate absolute flow matrix from A, F, and production Volumes
@@ -1897,11 +1901,12 @@ class Ecospold2Matrix(object):
             """ subfunction that handles creation of binary files """
 
             # save dictionary as pickle
-            with open(filename + '.pickle', 'wb') as fout:
+            ext = '.gz.pickle'
+            with gzip.open(filename + ext, 'wb') as fout:
                 pickle.dump(adict, fout)
-            sha1 = self.__hash_file(filename + '.pickle')
+            sha1 = self.__hash_file(filename + ext)
             msg = "{} saved in {} with SHA-1 of {}"
-            self.log.info(msg.format(what_it_is, filename + '.pickle', sha1))
+            self.log.info(msg.format(what_it_is, filename + ext, sha1))
 
             # save dictionary also as mat file
             if mat:
@@ -1938,6 +1943,7 @@ class Ecospold2Matrix(object):
                          'STR_header': STR_header,
                          'IMP_header': IMP_header
                          }
+            self.log.info("about to write to file")
             pickling(file_pr + '_symmNorm', adict,
                      'Final, symmetric, normalized matrices', mat)
 
@@ -1965,14 +1971,13 @@ class Ecospold2Matrix(object):
 
             pickling(file_pr + '_SUT', adict, 'Final SUT matrices', mat)
 
+        self.log.info("Starting to export to file")
         # save as full Dataframes
         format_name = 'Pandas'
         if file_formats is None or format_name in file_formats:
 
             file_pr = os.path.join(self.out_dir,
                                    self.project_name + format_name)
-            self.log.info("Exporting data as {} in {}".format(format_name,
-                                                              file_pr))
             if self.A is not None:
                 pickle_symm_norm(PRO=self.PRO,
                                  STR=self.STR,
@@ -1994,8 +1999,6 @@ class Ecospold2Matrix(object):
 
             file_pr = os.path.join(self.out_dir,
                                    self.project_name + format_name)
-            self.log.info("Exporting data as {} in {}".format(format_name,
-                                                              file_pr))
             if self.A is not None:
                 pickle_symm_norm(PRO=self.PRO,
                                  STR=self.STR,
@@ -2035,8 +2038,6 @@ class Ecospold2Matrix(object):
 
             file_pr = os.path.join(self.out_dir,
                                    self.project_name + format_name)
-            self.log.info("Exporting data as {} in {}".format(format_name,
-                                                              file_pr))
             PRO = self.PRO.fillna('').values
             STR = self.STR.fillna('').values
             IMP = self.IMP.fillna('').values
@@ -2077,8 +2078,6 @@ class Ecospold2Matrix(object):
         if file_formats is None or format_name in file_formats:
 
             csv_dir = os.path.join(self.out_dir, 'csv')
-            self.log.info("Exporting data as {} in {}".format(format_name,
-                                                              csv_dir))
             if not os.path.exists(csv_dir):
                 os.makedirs(csv_dir)
             self.PRO.to_csv(os.path.join(csv_dir, 'PRO.csv'))
@@ -2089,7 +2088,6 @@ class Ecospold2Matrix(object):
             if self.A is not None:
                 self.A.to_csv(os.path.join(csv_dir, 'A.csv'), sep='|')
                 self.F.to_csv(os.path.join(csv_dir, 'F.csv'), sep='|')
-                self.log.info("Final matrices saved as CSV files")
             if self.Z is not None:
                 self.Z.to_csv(os.path.join(csv_dir, 'Z.csv'), sep='|')
                 self.G_pro.to_csv(os.path.join(csv_dir, 'G_pro.csv'), sep='|')
@@ -2103,6 +2101,7 @@ class Ecospold2Matrix(object):
                 self.V_prodVol.to_csv(os.path.join(csv_dir, 'V_prodVol.csv'),
                                       sep='|')
                 self.G_act.to_csv(os.path.join(csv_dir, 'G_act.csv'), sep='|')
+            self.log.info("Final matrices saved as CSV files in " + csv_dir)
 
     def __hash_file(self, afile):
         """ Get SHA-1 hash of binary file
