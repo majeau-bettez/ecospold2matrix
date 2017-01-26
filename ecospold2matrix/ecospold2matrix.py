@@ -38,14 +38,19 @@ Credits:
 
 
 """
-import IPython
+try:
+    import IPython
+except:
+    pass
 import os
 import glob
+import io
+import pkgutil
 import subprocess
 from lxml import objectify
 import xml.etree.ElementTree as ET
 import pandas as pd
-_df = pandas.DataFrame
+_df = pd.DataFrame
 import numpy as np
 import scipy.sparse
 import scipy.io
@@ -60,7 +65,6 @@ import re
 import xlrd
 import xlwt
 import copy
-from os import path
 # pylint: disable-msg=C0103
 
 
@@ -228,73 +232,6 @@ class Ecospold2Matrix(object):
         os.system('rm -Rf ' + self.log_dir)
         os.makedirs(self.log_dir)
 
-        # MORE HARDCODED PARAMETERS
-
-        # Subcompartment matching
-        self.obs2char_subcomp = pd.DataFrame(
-            columns=["comp", "obs_sc",                  "char_sc"],
-            data=[["soil",   "agricultural",            "agricultural"],
-                  ["soil",   "forestry",                "forestry"],
-                  ["air",    "high population density", "high population density"],
-                  ["soil",   "industrial",              "industrial"],
-                  ["air",    "low population density",  "low population density"],
-                  ["water",  "ocean",                   "ocean"],
-                  ["water",  "river",                   "river"],
-                  ["water",  "river, long-term",        "river"],
-                  ["air",    "lower stratosphere + upper troposphere",
-                                                        "low population density"],
-                  ["air",    "low population density, long-term",
-                                                        "low population density"]
-                ])
-
-        # Default subcompartment when no subcomp match and no "unspecified"
-        # defined
-        self.fallback_sc = pd.DataFrame(
-                columns=["comp", "fallbacksubcomp"],
-                data=[[ 'water','river'],
-                      [ 'soil', 'industrial'],
-                      [ 'air', 'low population density']
-                      ])
-
-        self._header_harmonizing_dict = {
-                'subcompartment':'subcomp',
-                'Subcompartment':'subcomp',
-                'Compartment':'comp',
-                'Compartments':'comp',
-                'Substance name (ReCiPe)':'charName',
-                'Substance name (SimaPro)':'simaproName',
-                'ecoinvent_name':'inventoryName',
-                'recipe_name':'charName',
-                'simapro_name':'simaproName',
-                'CAS number': 'cas',
-                'casNumber': 'cas',
-                'Unit':'unit' }
-
-        # Read in parameter tables for CAS conflicts and known synonyms
-        def read_pandas_csv(path):
-            tmp = pd.read_csv(path, sep='|', comment='#')
-            return tmp.where(pd.notnull(tmp), None)
-        here = path.abspath(path.dirname(__file__))
-        self._cas_conflicts = read_pandas_csv(
-                path.join(here,'parameters/cas_conflicts.csv'))
-        self._synonyms = read_pandas_csv(
-                path.join(here,'parameters/synonyms.csv'))
-        self._custom_factors = read_pandas_csv(
-                path.join(here,'parameters/custom_factors.csv'))
-        # POTENTIAL OTHER ISSUES
-        ## Names that don't fit with their cas numbers
-        #['2-butenal, (2e)-', '123-73-9', '2-butenal',
-        #    'cas of (more common) E configuration; cas of mix is'
-        #    ' rather 4170-30-3'],
-        #['3-(1-methylbutyl)phenyl methylcarbamate', '2282-34-0',
-        #    'bufencarb', 'resolve name-cas collision in ReCiPe: CAS'
-        #    ' points to specific chemical, not bufencarb (008065-36-9),'
-        #    ' which is a mixture of this substance and phenol,'
-        #    ' 3-(1-ethylpropyl)-, 1-(n-methylcarbamate)'],
-        #['chlordane (technical)', '12789-03-6', None,
-        #    'pure chlordane has cas 000057-74-9, and is also defined'
-        #    ' for cis and trans. This one here seems to be more of a'
-        #    ' mixture or low grade, no formula in scifinder'],
 
         # DEFINE LOG TOOL
         self.log = logging.getLogger(self.project_name)
@@ -451,6 +388,7 @@ class Ecospold2Matrix(object):
                               " matching")
                 self.simple_characterisation_matching(characterisation_file)
             else:
+                self.prepare_matching_load_parameters()
                 self.process_inventory_elementary_flows()
                 self.read_characterisation(characterisation_file)
                 self.populate_complementary_tables()
@@ -2294,6 +2232,77 @@ class Ecospold2Matrix(object):
         self.C = self.C.reindex(self.IMP.index).reindex_axis(self.STR.index, 1)
         self.log.info("Characterisation matching done. C matrix created")
 
+    def prepare_matching_load_parameters():
+        """ Load predefined values and parameters for characterisation matching
+        """
+
+        # Read in parameter tables for CAS conflicts and known synonyms
+        def read_parameters(filename):
+            #resource = pkg_resources.resource_filename(__name__, filename)
+            resource = pkgutil.get_data(__name__, filename)
+            tmp = pd.read_csv(io.BytesIO(resource), sep='|', comment='#')
+            print(tmp)
+            return tmp.where(pd.notnull(tmp), None)
+        self._cas_conflicts = read_parameters('parameters/cas_conflicts.csv')
+        self._synonyms = read_parameters('parameters/synonyms.csv')
+        self._custom_factors = read_parameters('parameters/custom_factors.csv')
+
+        # MORE HARDCODED PARAMETERS
+
+        # Subcompartment matching
+        self.obs2char_subcomp = pd.DataFrame(
+            columns=["comp", "obs_sc",                  "char_sc"],
+            data=[["soil",   "agricultural",            "agricultural"],
+                  ["soil",   "forestry",                "forestry"],
+                  ["air",    "high population density", "high population density"],
+                  ["soil",   "industrial",              "industrial"],
+                  ["air",    "low population density",  "low population density"],
+                  ["water",  "ocean",                   "ocean"],
+                  ["water",  "river",                   "river"],
+                  ["water",  "river, long-term",        "river"],
+                  ["air",    "lower stratosphere + upper troposphere",
+                                                        "low population density"],
+                  ["air",    "low population density, long-term",
+                                                        "low population density"]
+                ])
+
+        # Default subcompartment when no subcomp match and no "unspecified"
+        # defined
+        self.fallback_sc = pd.DataFrame(
+                columns=["comp", "fallbacksubcomp"],
+                data=[[ 'water','river'],
+                      [ 'soil', 'industrial'],
+                      [ 'air', 'low population density']
+                      ])
+
+        self._header_harmonizing_dict = {
+                'subcompartment':'subcomp',
+                'Subcompartment':'subcomp',
+                'Compartment':'comp',
+                'Compartments':'comp',
+                'Substance name (ReCiPe)':'charName',
+                'Substance name (SimaPro)':'simaproName',
+                'ecoinvent_name':'inventoryName',
+                'recipe_name':'charName',
+                'simapro_name':'simaproName',
+                'CAS number': 'cas',
+                'casNumber': 'cas',
+                'Unit':'unit' }
+
+        # POTENTIAL OTHER ISSUES
+        ## Names that don't fit with their cas numbers
+        #['2-butenal, (2e)-', '123-73-9', '2-butenal',
+        #    'cas of (more common) E configuration; cas of mix is'
+        #    ' rather 4170-30-3'],
+        #['3-(1-methylbutyl)phenyl methylcarbamate', '2282-34-0',
+        #    'bufencarb', 'resolve name-cas collision in ReCiPe: CAS'
+        #    ' points to specific chemical, not bufencarb (008065-36-9),'
+        #    ' which is a mixture of this substance and phenol,'
+        #    ' 3-(1-ethylpropyl)-, 1-(n-methylcarbamate)'],
+        #['chlordane (technical)', '12789-03-6', None,
+        #    'pure chlordane has cas 000057-74-9, and is also defined'
+        #    ' for cis and trans. This one here seems to be more of a'
+        #    ' mixture or low grade, no formula in scifinder'],
 
     def initialize_database(self):
         """ Define tables of SQlite database for matching stressors to
