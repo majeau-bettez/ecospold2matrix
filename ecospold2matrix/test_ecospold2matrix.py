@@ -19,7 +19,7 @@ class TestE2M(unittest.TestCase):
 
 
     def setUp(self):
-        self.sysdir='./test/'
+        self.sysdir='./test_data/'
         self.name = 'test'
 
         prod = ['foo', 'waste']
@@ -154,7 +154,7 @@ class TestE2M(unittest.TestCase):
     def test_extract_products(self):
 
         # Load test value from csv file
-        products0 = pd.DataFrame.from_csv('./test/products.csv', sep='|')
+        products0 = pd.DataFrame.from_csv('./test_data/products.csv', sep='|')
         products0.rename(columns={'productId.1':'productId'}, inplace=True)
 
         # build product list
@@ -166,7 +166,7 @@ class TestE2M(unittest.TestCase):
     def test_extract_activities(self):
 
         # Load test values from csv file
-        activities0 = pd.read_csv('./test/activities.csv', sep='|', index_col=0)
+        activities0 = pd.read_csv('./test_data/activities.csv', sep='|', index_col=0)
 
         # build activity list
         parser = e2m.Ecospold2Matrix(self.sysdir, self.name)
@@ -177,8 +177,8 @@ class TestE2M(unittest.TestCase):
     def test_build_STR(self):
 
         # Read test values from csv file
-        STR0 = pd.read_csv('./test/STR.csv', sep='|', index_col=0)
-
+        STR0 = pd.read_csv('./test_data/STR.csv', sep='|', index_col=0)
+        STR0.index.name = 'id'
         parser = e2m.Ecospold2Matrix(self.sysdir, self.name)
         parser.build_STR()
 
@@ -186,7 +186,7 @@ class TestE2M(unittest.TestCase):
 
     def test_build_PRO(self):
         # Read test values from csv file
-        PRO0 = pd.read_table('./test/PRO.csv', sep='|', index_col=0)
+        PRO0 = pd.read_table('./test_data/PRO.csv', sep='|', index_col=0)
 
         parser = e2m.Ecospold2Matrix(self.sysdir, self.name)
         parser.build_PRO()
@@ -198,9 +198,9 @@ class TestE2M(unittest.TestCase):
     def test_extract_flows(self):
 
         # Read test values from csv file
-        inflows0 = pd.read_table('./test/inflows.csv', sep='|', index_col=0)
-        outflows0 = pd.read_table('./test/outflows.csv', sep='|', index_col=0)
-        elementary_flows0 = pd.read_table('./test/elementary_flows.csv',
+        inflows0 = pd.read_table('./test_data/inflows.csv', sep='|', index_col=0)
+        outflows0 = pd.read_table('./test_data/outflows.csv', sep='|', index_col=0)
+        elementary_flows0 = pd.read_table('./test_data/elementary_flows.csv',
                                           sep='|', index_col=0)
 
         parser = e2m.Ecospold2Matrix(self.sysdir, self.name)
@@ -214,15 +214,15 @@ class TestE2M(unittest.TestCase):
     def test_complement_labels(self):
 
         # Read test values from csv file
-        PRO0 = pd.DataFrame.from_csv('./test/PRO_full.csv', sep='|')
+        PRO0 = pd.DataFrame.from_csv('./test_data/PRO_full.csv', sep='|')
 
         parser = e2m.Ecospold2Matrix(self.sysdir, self.name)
-        products0 = pd.DataFrame.from_csv('./test/products.csv', sep='|')
+        products0 = pd.DataFrame.from_csv('./test_data/products.csv', sep='|')
         parser.products = products0.rename(columns={'productId.1':'productId'})
-        parser.activities = pd.read_csv('./test/activities.csv',
+        parser.activities = pd.read_csv('./test_data/activities.csv',
                                         sep='|', index_col=0)
-        parser.STR = pd.read_csv('./test/STR.csv', sep='|', index_col=0)
-        parser.PRO = pd.read_table('./test/PRO.csv', sep='|', index_col=0)
+        parser.STR = pd.read_csv('./test_data/STR.csv', sep='|', index_col=0)
+        parser.PRO = pd.read_table('./test_data/PRO.csv', sep='|', index_col=0)
 
         parser.complement_labels()
 

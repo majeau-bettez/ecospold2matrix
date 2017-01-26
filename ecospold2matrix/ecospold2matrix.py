@@ -38,10 +38,6 @@ Credits:
 
 
 """
-try:
-    import IPython
-except:
-    pass
 import os
 import glob
 import io
