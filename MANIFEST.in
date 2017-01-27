@@ -1,3 +1,5 @@
 include ecospold2matrix/parameters/*
 include ecospold2matrix/test_data/*
 include ecospold2matrix/*sql
+include	README.md
+include LICENSE.txt
