@@ -1342,7 +1342,7 @@ class Ecospold2Matrix(object):
 
             # Save missing flows to file for inspection
             miss.to_csv(os.path.join(self.log_dir, 'missingProducers.csv'),
-                        sep='|', encodng='utf-8')
+                        sep='|', encoding='utf-8')
 
             # Insert dummy productions
             for i, row in miss.iterrows():
@@ -2858,7 +2858,7 @@ class Ecospold2Matrix(object):
         if unmatched.shape[0]:
             logfile =  'unmatched_oldLabel_subst.csv'
             unmatched.to_csv(os.path.join(self.log_dir, logfile),
-                             sep='|', encodng='utf-8')
+                             sep='|', encoding='utf-8')
             msg = "{} old_labels entries not matched to substance; see {}"
             self.log.warning(msg.format(unmatched.shape[0], logfile))
 
