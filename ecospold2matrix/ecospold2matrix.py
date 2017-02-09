@@ -293,7 +293,7 @@ class Ecospold2Matrix(object):
     # =========================================================================
     # MAIN FUNCTIONS
     def ecospold_to_Leontief(self, fileformats=None, with_absolute_flows=False,
-                             lci_check=False, rtol=1e-2, atol=1e-5, imax=3,
+                             lci_check=False, rtol=5e-2, atol=1e-5, imax=3,
                              characterisation_file=None,
                              ardaidmatching_file=None):
         """ Recasts an full ecospold dataset into normalized symmetric matrices
@@ -1709,7 +1709,7 @@ class Ecospold2Matrix(object):
         return pd.DataFrame(Ec, index=F0.index, columns=A0.columns)
 
 
-    def cummulative_lci_check(self, rtol=1e-2, atol=1e-5, imax=3):
+    def cummulative_lci_check(self, rtol=5e-2, atol=1e-5, imax=3):
         """
         Sanity check: compares calculated and parsed cummulative LCI data
 
@@ -1742,6 +1742,7 @@ class Ecospold2Matrix(object):
         i = 1
         while (i <= imax) and (rtol > self.rtolmin):
             bad = self.compareE(Ec, rtol, atol)
+            del(Ec)
             rtol /= 10
             if bad is not None:
                 # Save bad flows in Shelf persistent dictionary
@@ -1754,7 +1755,7 @@ class Ecospold2Matrix(object):
                                  filename,
                                  sha1))
 
-    def compareE(self, Ec, rtol=1e-2, atol=1e-5):
+    def compareE(self, Ec, rtol=5e-2, atol=1e-5):
         """ Compare parsed (official) cummulative lci emissions (self.E) with
         lifecycle emissions calculated from the constructed matrices (Ec)
         """
@@ -1764,15 +1765,18 @@ class Ecospold2Matrix(object):
         # Compare the two matrices, see how many values are "close"
         close = np.isclose(abs(self.E), abs(Ec), rtol, atol, equal_nan=True)
         notclose = np.sum(~ close)
-        self.log.info('There are {} lifecycle cummulative emissions that '
+        allcomp = np.sum(close) + notclsose
+        self.log.info('There are {} lifecycle cummulative emissions out of {} that '
                       'differ by more than {} % AND by more than {} units '
                       'relative to the official value.'.format(notclose,
+                                                               allcomp,
                                                                rtol*100,
                                                                atol))
 
         if notclose:
             # Compile a Series of all "not-close" values
             thebad = pd.concat([self.E.mask(close).stack(), Ec.mask(close).stack()], 1)
+            del(Ec)
             thebad.columns = ['official', 'calculated']
             thebad.index.names = ['stressId', 'fileId']
 
