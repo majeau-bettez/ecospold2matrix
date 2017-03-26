@@ -31,17 +31,17 @@ where
 Simple Use case
 ----------------
 ```python
-	import ecospold2matrix as e2m
+import ecospold2matrix as e2m
 
-	# Define parser object, with default and project-specific parameters
-	# Make sure that the path database/location holds the datasets and MasterData folders
-	parser = e2m.Ecospold2Matrix('/database/location/', project_name='eco31_cons', positive_waste=True)
+# Define parser object, with default and project-specific parameters
+# Make sure that the path database/location holds the datasets and MasterData folders
+parser = e2m.Ecospold2Matrix('/database/location/', project_name='eco31_cons', positive_waste=True)
 
-	# Assemble matrices, including scaled-up flow matrices, and save to csv-files
-	parser.ecospold_to_Leontief(fileformats=['csv'], with_absolute_flows=True)
+# Assemble matrices, including scaled-up flow matrices, and save to csv-files
+parser.ecospold_to_Leontief(fileformats=['csv'], with_absolute_flows=True)
 ```
 
-Ou encore
+Or else...
 
 
 ```python
