@@ -57,6 +57,10 @@ import csv
 import shelve
 import hashlib
 import sqlite3
+try:
+    import IPython
+except:
+    pass
 import re
 import xlrd
 import xlwt
@@ -1626,10 +1630,13 @@ class Ecospold2Matrix(object):
         if data_folder is None:
             data_folder = self.lci_dir
         spold_files = glob.glob(os.path.join(data_folder, '*.spold'))
-        msg = "Processing {} {} files from {}"
-        self.log.info(msg.format(len(spold_files),
-                                 'cummulative LCI',
-                                 data_folder))
+
+        if len(spold_files):
+            self.log.info( "Processing {} {} files from {}".format(
+                    len(spold_files), 'cummulative LCI', data_folder))
+        else:
+            self.log.warning(
+                    "Did not find any ecospold file in {}".format(data_folder))
 
         # Initialize (huge) dataframe and get dimensions
         self.log.info('creating E dataframe')
@@ -1742,7 +1749,6 @@ class Ecospold2Matrix(object):
         i = 1
         while (i <= imax) and (rtol > self.rtolmin):
             bad = self.compareE(Ec, rtol, atol)
-            del(Ec)
             rtol /= 10
             if bad is not None:
                 # Save bad flows in Shelf persistent dictionary
@@ -1763,16 +1769,15 @@ class Ecospold2Matrix(object):
         thebad = None
 
         # Compare the two matrices, see how many values are "close"
-        close = np.isclose(abs(self.E), abs(Ec), rtol, atol, equal_nan=True)
+        close = np.isclose(abs(self.E.fillna(0.0)), abs(Ec.fillna(0.0)), rtol, atol)
         notclose = np.sum(~ close)
-        allcomp = np.sum(close) + notclsose
+        allcomp = np.sum(close) + notclose
         self.log.info('There are {} lifecycle cummulative emissions out of {} that '
                       'differ by more than {} % AND by more than {} units '
                       'relative to the official value.'.format(notclose,
                                                                allcomp,
                                                                rtol*100,
                                                                atol))
-
         if notclose:
             # Compile a Series of all "not-close" values
             thebad = pd.concat([self.E.mask(close).stack(), Ec.mask(close).stack()], 1)
@@ -1784,12 +1789,12 @@ class Ecospold2Matrix(object):
             thebad = pd.merge(thebad.reset_index(),
                               self.PRO[['productName', 'activityName']],
                               left_on='fileId',
-                              right_on=self.PRO.index)
+                              right_index=True)
 
             thebad = pd.merge(thebad,
                               self.STR,
                               left_on='stressId',
-                              right_on=self.STR.index).set_index(['stressId',
+                              right_index=True).set_index(['stressId',
                                                                   'fileId'])
 
         return thebad
