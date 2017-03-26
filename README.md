@@ -23,8 +23,8 @@ Installation
 Now the code can be installed with:
 
 `pip install git+git://github.com/repo_owner/ecospold2matrix#egg=ecospold2matrix`
-    
-where 
+
+where
 * `repo_owner` could be: majeau-bettez or tngTUDOR or any fork of the project
 
 
@@ -39,8 +39,25 @@ Simple Use case
 
 	# Assemble matrices, including scaled-up flow matrices, and save to csv-files
 	parser.ecospold_to_Leontief(fileformats=['csv'], with_absolute_flows=True)
-```	
+```
 
+Ou encore
+
+
+```python
+
+import ecospold2matrix as em
+charfile = 'ecoinvent_3.3_LCIA_implementation/LCIA_implementation_3.3.xlsx'
+parser = em.Ecospold2Matrix(
+        sys_dir = 'ecoinvent_3.3_consequential_ecoSpold02/',
+        lci_dir = 'ecoinvent_3.3_consequential_lci_ecoSpold02/datasets',
+        positive_waste=True,
+        prefer_pickles=True,
+        project_name='ecoinvent33cons',
+        version_name='ecoinvent33')
+
+parser.ecospold_to_Leontief(characterisation_file=charfile, lci_check=True)
+```
 Short Demo
 ----------
 Have a look at this [Ipython notebook for a demo of typical usage](http://nbviewer.ipython.org/github/majeau-bettez/ecospold2matrix/blob/master/doc/ecospold2matrix_demo.ipynb)
