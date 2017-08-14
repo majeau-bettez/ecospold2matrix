@@ -1,9 +1,11 @@
 from setuptools import setup
 
+exec(open('ecospold2matrix/version.py').read())
+
 setup(
     name='ecospold2matrix',
     packages=['ecospold2matrix', ],
-    version='0.1.0',
+    version=__version__,
     author='Guillaume Majeau-Bettez',
     author_email="guillaume.majeau-bettez@ntnu.no",
     description="Class for recasting Ecospold2 LCA dataset into Leontief matrix representations or Supply and Use Tables",

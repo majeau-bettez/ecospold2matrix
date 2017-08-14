@@ -38,6 +38,7 @@ Credits:
 
 
 """
+
 import os
 import glob
 import io
@@ -1840,6 +1841,19 @@ class Ecospold2Matrix(object):
         # TODO: include characterisation factors in all formats and also
         # non-normalized
 
+
+        def generate_metadata(self):
+            metadata = dict(wasteflows_are_positive=self.positive_waste,
+                            system_directory=self.sys_dir,
+                            output_directory=self.out_dir,
+                            characterisation_file=self.characterisation_file,
+                            project_name=self.project_name,
+                            data_version=self.version_name,
+                            time=logging.time.strftime("%c"),
+                            ecospold2matrix_version=__version__
+                            )
+            return metadata
+
         def pickling(filename, adict, what_it_is, mat):
             """ subfunction that handles creation of binary files """
 
@@ -1873,7 +1887,8 @@ class Ecospold2Matrix(object):
                          'C': C,
                          'PRO_header': PRO_header,
                          'STR_header': STR_header,
-                         'IMP_header': IMP_header
+                         'IMP_header': IMP_header,
+                         'metadata': metadata,
                          }
             else:
                 adict = {'PRO_gen': PRO,
@@ -1884,7 +1899,8 @@ class Ecospold2Matrix(object):
                          'C': C,
                          'PRO_header': PRO_header,
                          'STR_header': STR_header,
-                         'IMP_header': IMP_header
+                         'IMP_header': IMP_header,
+                         'metadata': metadata,
                          }
             self.log.info("about to write to file")
             pickling(file_pr + '_symmNorm', adict,
@@ -1897,7 +1913,9 @@ class Ecospold2Matrix(object):
             adict = {'PRO': PRO,
                      'STR': STR,
                      'Z': Z,
-                     'G_pro': G_pro}
+                     'G_pro': G_pro,
+                     'metadata': metadata,
+                     }
             pickling(file_pr + '_symmScale', adict,
                      'Final, symmetric, scaled-up flow matrices', mat)
 
@@ -1910,11 +1928,14 @@ class Ecospold2Matrix(object):
                      'U': U,
                      'V': V,
                      'V_prodVol': V_prodVol,
-                     'G_act': G_act}
+                     'G_act': G_act,
+                     'metadata': metadata,
+                     }
 
             pickling(file_pr + '_SUT', adict, 'Final SUT matrices', mat)
 
         self.log.info("Starting to export to file")
+        metadata = generate_metadata()
         # save as full Dataframes
         format_name = 'Pandas'
         if file_formats is None or format_name in file_formats:
@@ -2023,6 +2044,11 @@ class Ecospold2Matrix(object):
             csv_dir = os.path.join(self.out_dir, 'csv')
             if not os.path.exists(csv_dir):
                 os.makedirs(csv_dir)
+            # write metadata
+            with open(os.path.join(csv_dir, 'metadata.csv'), 'w+') as f:
+                w = csv.writer(f)
+                w.writerows(metadata.items())
+            # write the actual data
             self.PRO.to_csv(os.path.join(csv_dir, 'PRO.csv'))
             self.STR.to_csv(os.path.join(csv_dir, 'STR.csv'))
             if self.C is not None:
