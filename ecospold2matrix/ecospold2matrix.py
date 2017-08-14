@@ -94,7 +94,7 @@ class Ecospold2Matrix(object):
                  positive_waste=False, prefer_pickles=False, nan2null=False,
                  save_interm=True, PRO_order=['ISIC', 'activityName'],
                  STR_order=['comp', 'name', 'subcomp'],
-                 verbose=True, version_name='ecoinvent31'):
+                 verbose=True, version_name='x.x', characterisation_file=None):
 
         """ Defining an ecospold2matrix object, with key parameters that
         determine how the data will be processes.
@@ -136,6 +136,8 @@ class Ecospold2Matrix(object):
                      [Default: first sort by order of compartment,
                                subcompartment and then by name]
 
+        * characterisation_file: name of file containing characterisation
+                                 factors
 
 
         Main functions and worflow:
@@ -210,6 +212,9 @@ class Ecospold2Matrix(object):
             self.lci_dir = os.path.abspath(lci_dir)
         else:
             self.lci_dir = lci_dir
+
+        self.characterisation_file = characterisation_file
+
         self.version_name = version_name
 
         self.char_method = None # characterisation method set by
@@ -332,8 +337,8 @@ class Ecospold2Matrix(object):
         * atol : Initial (max) absolute tolerance for comparing E with
                  calculated E
 
-        * characterisation_file: name of file containing characterisation
-                                 factors
+        * characterisation_file: DEPRECATED! Pass argument to Ecospold2Matrix
+                                 instance initialization instead
 
         * ardaidmatching_file: name of file matching Arda Ids, Ecoinvent2 DSIDs
                                and ecoinvent3 UUIDs. Only useful for the Arda
@@ -360,6 +365,9 @@ class Ecospold2Matrix(object):
 
         """
 
+        if characterisation_file is not None:
+            raise DeprecationWarning("Characterisation_file parameter is deprecated for ecospold_to_Leontief. Pass filename during object initialization")
+
         # Read in system description
         self.extract_products()
         self.extract_activities()
@@ -381,17 +389,18 @@ class Ecospold2Matrix(object):
         if with_absolute_flows:
             self.scale_up_AF()
 
-        if characterisation_file is not None:
+
+        if self.characterisation_file is not None:
             print("starting characterisation")
-            if 'LCIA_implementation' in characterisation_file:
+            if 'LCIA_implementation' in self.characterisation_file:
                 self.log.info("Characterisation file seems to be ecoinvent"
                               " LCIA implementation. Will apply simple name"
                               " matching")
-                self.simple_characterisation_matching(characterisation_file)
+                self.simple_characterisation_matching()
             else:
                 self.prepare_matching_load_parameters()
                 self.process_inventory_elementary_flows()
-                self.read_characterisation(characterisation_file)
+                self.read_characterisation()
                 self.populate_complementary_tables()
                 self.characterize_flows()
                 self.generate_characterized_extensions()
@@ -2173,7 +2182,7 @@ class Ecospold2Matrix(object):
     # =========================================================================
     # Characterisation factors matching
     # =========================================================================
-    def simple_characterisation_matching(self, characterisation_file):
+    def simple_characterisation_matching(self):
 
         # Useful stuff
         c = self.conn.cursor()
@@ -2190,17 +2199,17 @@ class Ecospold2Matrix(object):
             return df, col_version_numbers
 
         # Read and clean units
-        units = pd.read_excel(characterisation_file, 'units')
+        units = pd.read_excel(self.characterisation_file, 'units')
         units, __ = clean_up_columns(units)
 
         # Read and clean characterisation factors
-        cf = pd.read_excel(characterisation_file, 'CFs')
+        cf = pd.read_excel(self.characterisation_file, 'CFs')
         cf, col_version_numbers = clean_up_columns(cf)
 
 
         # Try to find column with the matching CF and filename version number
         # (e.g. CF 3.3 for LCIA_Implementation_3.3.xlsx)
-        file_version = non_decimal.sub('', basename(characterisation_file))
+        file_version = non_decimal.sub('', basename(self.characterisation_file))
         try:
             cf_col = col_version_numbers.index(file_version)
             msg = "Will use column {}, named {}, for characterisation factors"
@@ -2536,7 +2545,7 @@ class Ecospold2Matrix(object):
         self.clean_label('raw_inventory')
         self.conn.commit()
 
-    def read_characterisation(self, characterisation_file):
+    def read_characterisation(self):
         """Input characterisation factor table (STR) to database and clean up
         """
 
@@ -2552,12 +2561,12 @@ class Ecospold2Matrix(object):
 
         # check whether an extraction method has been written for reading the
         # characterisation factor file
-        if 'ReCiPe111' in characterisation_file:
+        if 'ReCiPe111' in self.characterisation_file:
             self.char_method='ReCiPe111'
-            picklename = re.sub('xlsx*$', 'pickle', characterisation_file)
+            picklename = re.sub('xlsx*$', 'pickle', self.characterisation_file)
         else:
             self.log.error("No method defined to read characterisation factors"
-                    " from {}.  Aborting.".format(characterisation_file))
+                    " from {}.  Aborting.".format(self.characterisation_file))
             #TODO: abort
 
         # sheet reading parameters
@@ -2589,8 +2598,8 @@ class Ecospold2Matrix(object):
             # Get all impact categories directly from excel file
             print("reading for impacts")
             self.log.info("CAREFUL! Make sure you shift headers to the right by"
-                    " 1 column in FDP sheet of {}".format(characterisation_file))
-            wb = xlrd.open_workbook(characterisation_file)
+                    " 1 column in FDP sheet of {}".format(self.characterisation_file))
+            wb = xlrd.open_workbook(self.characterisation_file)
             imp =[]
             for sheet in hardcoded:
                 print(imp)
@@ -2605,7 +2614,7 @@ class Ecospold2Matrix(object):
             raw_char = pd.DataFrame()
             for i in range(len(hardcoded)):
                 sheet = hardcoded[i]
-                j = pd.io.excel.read_excel(characterisation_file,
+                j = pd.io.excel.read_excel(self.characterisation_file,
                                              sheet['name'],
                                              skiprows=range(sheet['rows']),
                                              parse_cols=sheet['range'])
