@@ -66,6 +66,10 @@ import re
 import xlrd
 import xlwt
 import copy
+try:
+    from .version import __version__
+except:
+    from version import __version__
 # pylint: disable-msg=C0103
 
 
@@ -1851,8 +1855,15 @@ class Ecospold2Matrix(object):
         # non-normalized
 
 
-        def generate_metadata(self):
-            metadata = dict(wasteflows_are_positive=self.positive_waste,
+        def generate_metadata():
+            """ Compile metadata in a variable, to be included in output file"""
+
+            if self.positive_waste:
+                waste_is_positive = 'True'
+            else:
+                waste_is_positive = 'False'
+
+            metadata = dict(wasteflows_are_positive=waste_is_positive,
                             system_directory=self.sys_dir,
                             output_directory=self.out_dir,
                             characterisation_file=self.characterisation_file,
