@@ -2227,7 +2227,6 @@ class Ecospold2Matrix(object):
     def simple_characterisation_matching(self):
 
         # Useful stuff
-        c = self.conn.cursor()
         non_decimal = re.compile(r'[^0-9]')
         basename = os.path.basename
 
@@ -2314,7 +2313,7 @@ class Ecospold2Matrix(object):
         self.C = self.C.reindex(self.IMP.index).reindex_axis(self.STR.index, 1)
         self.log.info("Characterisation matching done. C matrix created")
 
-    def prepare_matching_load_parameters():
+    def prepare_matching_load_parameters(self):
         """ Load predefined values and parameters for characterisation matching
         """
 
@@ -2395,8 +2394,8 @@ class Ecospold2Matrix(object):
         c.execute('PRAGMA foreign_keys = ON;')
         self.conn.commit()
 
-        here = path.abspath(path.dirname(__file__))
-        with open(path.join(here,'initialize_database.sql'),'r') as f:
+        here = os.path.abspath(os.path.dirname(__file__))
+        with open(os.path.join(here,'initialize_database.sql'),'r') as f:
             c.executescript(f.read())
         self.conn.commit()
 
@@ -2408,7 +2407,7 @@ class Ecospold2Matrix(object):
         """
 
         c = self.conn.cursor()
-        table= scrub(table)
+        table = scrub(table)
 
         # Harmonize label units
         c.executescript( """
