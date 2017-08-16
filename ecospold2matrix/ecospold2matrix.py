@@ -978,6 +978,8 @@ class Ecospold2Matrix(object):
                                                'productId',
                                                'activityName',
                                                'ISIC',
+                                               'price',
+                                               'priceUnit',
                                                'EcoSpoldCategory',
                                                'geography',
                                                'technologyLevel',
@@ -1000,7 +1002,8 @@ class Ecospold2Matrix(object):
             root = ET.parse(sfile).getroot()
 
             # Record product Id
-            PRO.ix[file_index, 'productId'] = file_index.split('_')[1]
+            activity_id, productId = file_index.split('_')
+            PRO.ix[file_index, 'productId'] = productId  # TODO: this is actually an exchange ID, no?
 
             # Find activity dataset
             child_ds = root.find(self.__PRE + 'childActivityDataset')
@@ -1008,7 +1011,7 @@ class Ecospold2Matrix(object):
                 child_ds = root.find(self.__PRE + 'activityDataset')
             activity_ds = child_ds.find(self.__PRE + 'activityDescription')
 
-            # Loop through activity dataset
+            # Loop through activity dataset attributes
             for entry in activity_ds:
 
                 # Get name, id, etc
@@ -1056,6 +1059,34 @@ class Ecospold2Matrix(object):
                     PRO.ix[file_index, 'macroEconomicScenario'
                           ] = entry.find(self.__PRE + 'name').text
                     continue
+
+            # To get prices, go through intermediate exchanges
+            interm_exchanges = child_ds.find(self.__PRE + 'flowData').findall(self.__PRE + 'intermediateExchange')
+            for exchange in interm_exchanges:
+                try:
+                    outputgroup = exchange.find(self.__PRE + 'outputGroup').text  # if not output, skip & catch error
+                    # Select only main product for each file
+                    if outputgroup == '0' and exchange.get('intermediateExchangeId') == productId:
+                        # Go through properties for prices
+                        props = exchange.findall(self.__PRE + 'property')
+                        for prop in props:
+                            if prop.find(self.__PRE + 'name').text == 'price':
+                                price = np.float(prop.get('amount'))
+                                price_unit = prop.find(self.__PRE + 'unitName').text
+
+                                # Add new price if initially blank
+                                price_org = PRO.ix[file_index, 'price']
+                                if price_org is np.nan:
+                                    PRO.ix[file_index, ['price', 'priceUnit']] = [price, price_unit]
+                                # Or complain if price already exists
+                                elif not np.allclose([price_org], [price]):
+                                    print("WARNING: We have heterogeneous prices")
+                                    IPython.embed()
+                                else:
+                                    pass
+                except AttributeError:
+                    pass
+
 
             # quality check of id and index
             if file_index.split('_')[0] != PRO.ix[file_index, 'activityId']:
