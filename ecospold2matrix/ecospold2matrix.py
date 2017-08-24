@@ -1916,15 +1916,11 @@ class Ecospold2Matrix(object):
         # non-normalized
 
 
-        def generate_metadata():
-            """ Compile metadata in a variable, to be included in output file"""
+        def generate_processingdata():
+            """ Compile processingdata in a variable, to be included in output file"""
 
-            if self.positive_waste:
-                waste_is_positive = 'True'
-            else:
-                waste_is_positive = 'False'
-
-            metadata = dict(wasteflows_are_positive=waste_is_positive,
+            processingdata = dict(wasteflows_are_positive=str(self.positive_waste),
+                            flows_forced_positive=str(self.force_all_positive),
                             system_directory=self.sys_dir,
                             output_directory=self.out_dir,
                             characterisation_file=self.characterisation_file,
@@ -1933,7 +1929,7 @@ class Ecospold2Matrix(object):
                             time=logging.time.strftime("%c"),
                             ecospold2matrix_version=__version__
                             )
-            return metadata
+            return processingdata
 
         def pickling(filename, adict, what_it_is, mat):
             """ subfunction that handles creation of binary files """
@@ -1969,7 +1965,7 @@ class Ecospold2Matrix(object):
                          'PRO_header': PRO_header,
                          'STR_header': STR_header,
                          'IMP_header': IMP_header,
-                         'metadata': metadata,
+                         'processingdata': processingdata,
                          }
             else:
                 adict = {'PRO_gen': PRO,
@@ -1981,7 +1977,7 @@ class Ecospold2Matrix(object):
                          'PRO_header': PRO_header,
                          'STR_header': STR_header,
                          'IMP_header': IMP_header,
-                         'metadata': metadata,
+                         'processingdata': processingdata,
                          }
             self.log.info("about to write to file")
             pickling(file_pr + '_symmNorm', adict,
@@ -1995,7 +1991,7 @@ class Ecospold2Matrix(object):
                      'STR': STR,
                      'Z': Z,
                      'G_pro': G_pro,
-                     'metadata': metadata,
+                     'processingdata': processingdata,
                      }
             pickling(file_pr + '_symmScale', adict,
                      'Final, symmetric, scaled-up flow matrices', mat)
@@ -2010,13 +2006,13 @@ class Ecospold2Matrix(object):
                      'V': V,
                      'V_prodVol': V_prodVol,
                      'G_act': G_act,
-                     'metadata': metadata,
+                     'processingdata': processingdata,
                      }
 
             pickling(file_pr + '_SUT', adict, 'Final SUT matrices', mat)
 
         self.log.info("Starting to export to file")
-        metadata = generate_metadata()
+        processingdata = generate_processingdata()
         # save as full Dataframes
         format_name = 'Pandas'
         if file_formats is None or format_name in file_formats:
@@ -2125,10 +2121,10 @@ class Ecospold2Matrix(object):
             csv_dir = os.path.join(self.out_dir, 'csv')
             if not os.path.exists(csv_dir):
                 os.makedirs(csv_dir)
-            # write metadata
-            with open(os.path.join(csv_dir, 'metadata.csv'), 'w+') as f:
+            # write processingdata
+            with open(os.path.join(csv_dir, 'processingdata.csv'), 'w+') as f:
                 w = csv.writer(f)
-                w.writerows(metadata.items())
+                w.writerows(processingdata.items())
             # write the actual data
             self.PRO.to_csv(os.path.join(csv_dir, 'PRO.csv'))
             self.STR.to_csv(os.path.join(csv_dir, 'STR.csv'))
