@@ -93,12 +93,13 @@ class Ecospold2Matrix(object):
     __TechnologyLevels = pd.Series(
             ['Undefined', 'New', 'Modern', 'Current', 'Old', 'Outdated'],
             index=[0, 1, 2, 3, 4, 5])
+    __CUTOFFTXT ="Recycled Content cut-off"
 
     def __init__(self, sys_dir, project_name, out_dir='.', lci_dir=None,
-                 positive_waste=False, prefer_pickles=False, nan2null=False,
-                 save_interm=True, PRO_order=['ISIC', 'activityName'],
-                 STR_order=['comp', 'name', 'subcomp'],
-                 verbose=True, version_name='x.x', characterisation_file=None):
+            positive_waste=False, nan2null=False, save_interm=True,
+            PRO_order=['ISIC', 'activityName'], STR_order=['comp', 'name',
+                'subcomp'], verbose=True, version_name='x.x',
+            characterisation_file=None):
 
         """ Defining an ecospold2matrix object, with key parameters that
         determine how the data will be processes.
@@ -119,9 +120,6 @@ class Ecospold2Matrix(object):
                           waste flows positive
                           [default false]
 
-        * prefer_pickles: If sys_dir contains pre-processed data in form of
-                          pickle-files, whether or not to use those
-                          [Default: False, don't use]
 
         * nan2null: Whether or not to replace Not-a-Number by 0.0
                     [Default: False, don't replace anything]
@@ -227,11 +225,17 @@ class Ecospold2Matrix(object):
 
         # PROJECT-WIDE OPTIONS
         self.positive_waste = positive_waste
-        self.prefer_pickles = prefer_pickles
         self.nan2null = nan2null
         self.save_interm = save_interm
         self.PRO_order = PRO_order
         self.STR_order = STR_order
+
+        # PROJECT-WIDE OPTIONS, NOT FOR THE USUAL USER, NOT INIT ARGUMENT
+        self.force_all_positive = False # Force all product flows positive,
+
+        # prefer_pickles: If sys_dir contains pre-processed data in form of
+        # pickle-files, whether or not to use those [Default: False, don't use]
+        self.prefer_pickles = False
 
         # CREATE DIRECTORIES IF NOT IN EXISTENCE
         if out_dir and not os.path.exists(self.out_dir):
@@ -1508,16 +1512,22 @@ class Ecospold2Matrix(object):
                            columns='fileId').reindex(index=self.STR.index,
                                                      columns=self.PRO.index)
 
-        # Take care of sign convention for waste
         self.log.info("Starting normalizing matrices")
         if self.positive_waste:
+            # Take care of sign convention for waste
+            #   This approach changes the sign of explicit waste flows (defined
+            #   with a negative output), while preserving other negative signs
+            #   (substitution, etc.)
             sign_changer = self.outflows['amount'] / self.outflows['amount'].abs()
+            
+            # Change sign of A-matrix rows where exchange is waste
             self.A = self.A.mul(sign_changer, axis=0)
             col_normalizer = 1 / self.outflows['amount'].abs()
         else:
             col_normalizer = 1 / self.outflows['amount']
 
-        # Normalize flows
+
+        # Normalize columns (technology descriptions)
         # Reorder all rows and columns to fit labels
         self.A = self.A.mul(col_normalizer, axis=1).reindex(
                                                         index=self.PRO.index,
@@ -1525,6 +1535,25 @@ class Ecospold2Matrix(object):
         self.F = self.F.mul(col_normalizer, axis=1).reindex(
                                                         index=self.STR.index,
                                                         columns=self.PRO.index)
+
+        if self.positive_waste:
+            # In cutoff version of ecoinvent, some dummy waste processes do
+            # _not_ seem to have negative reference outputs. These must then be
+            # identified more crudely based on string recognition, and their
+            # rows forced positive in the A-matrix
+            bo_cutoff = self.PRO.activityName.str.contains(self.__CUTOFFTXT)
+            self.A.loc[bo_cutoff,:] = self.A.loc[bo_cutoff,:].abs()
+
+        if self.force_all_positive:
+            # More foreceful postprocessing, e.g., if suspicious negative flows
+            # in cutoff ecoinvent
+            nb_neg = (self.A < 0.0).sum().sum()
+            if nb_neg:
+                self.A = self.A.abs()
+                self.log.warning("The A-matrix contained {} negative flows. All "
+                                 "made positive now".format(nb_neg))
+                # TODO: log which negative flows turned positive
+
         self.log.info("fillna")
         if self.nan2null:
             self.A.fillna(0, inplace=True)
@@ -1549,6 +1578,7 @@ class Ecospold2Matrix(object):
         * self.G_pro
 
         """
+        # TODO: Do we need to worry about negative signs of waste here?
         q = self.outflows['productionVolume']
 
         self.Z = self.A.multiply(q, axis=1).reindex_like(self.A)
