@@ -687,10 +687,16 @@ class Ecospold2Matrix(object):
 
             # Get list of id, name, unitId, and unitName for all intermediate
             # exchanges
+            cpc = None
+            for classification in o.findall(self.__PRE + 'classification'):
+                if classification.find(self.__PRE + 'classificationSystem').text == 'CPC':
+                    cpc = classification.find(self.__PRE + 'classificationValue').text
             return {'productName': o.name.text,
                     'unitName': o.unitName.text,
                     'productId': o.get('id'),
-                    'unitId': o.get('unitId')}
+                    'unitId': o.get('unitId'),
+                    'cpc': cpc,
+                    }
 
         # Parse XML file
         with open(fp, 'r', encoding="utf-8") as fh:
@@ -1023,6 +1029,7 @@ class Ecospold2Matrix(object):
 
                 # Get classification codes
                 if entry.tag == self.__PRE + 'classification':
+                    # TODO: should this not be findall here?
                     if 'ISIC' in entry.find(self.__PRE +
                                             'classificationSystem').text:
                         PRO.ix[file_index, 'ISIC'] = entry.find(
