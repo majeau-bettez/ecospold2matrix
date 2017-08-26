@@ -96,10 +96,9 @@ class Ecospold2Matrix(object):
     __CUTOFFTXT ="Recycled Content cut-off"
 
     def __init__(self, sys_dir, project_name, out_dir='.', lci_dir=None,
-            positive_waste=False, nan2null=False, save_interm=True,
-            PRO_order=['ISIC', 'activityName'], STR_order=['comp', 'name',
-                'subcomp'], verbose=True, version_name='x.x',
-            characterisation_file=None):
+            positive_waste=False, nan2null=False, PRO_properties=("dry mass", "wet mass"),
+            PRO_order=['ISIC', 'activityName'], STR_order=['comp', 'name', 'subcomp'],
+            verbose=True, version_name='x.x', characterisation_file=None):
 
         """ Defining an ecospold2matrix object, with key parameters that
         determine how the data will be processes.
@@ -226,15 +225,16 @@ class Ecospold2Matrix(object):
         # PROJECT-WIDE OPTIONS
         self.positive_waste = positive_waste
         self.nan2null = nan2null
-        self.save_interm = save_interm
         self.PRO_order = PRO_order
         self.STR_order = STR_order
+        self.PRO_properties = PRO_properties
 
         # PROJECT-WIDE OPTIONS, NOT FOR THE USUAL USER, NOT INIT ARGUMENT
         self.force_all_positive = False # Force all product flows positive,
 
         # prefer_pickles: If sys_dir contains pre-processed data in form of
         # pickle-files, whether or not to use those [Default: False, don't use]
+        self.save_interm = True
         self.prefer_pickles = False
 
         # CREATE DIRECTORIES IF NOT IN EXISTENCE
@@ -681,6 +681,16 @@ class Ecospold2Matrix(object):
         This function incorporates/adapts code from Brightway2data, i.e., the
         method extract_technosphere_metadata from class Ecospold2DataExtractor
         """
+        # First get UUID of properties to extract
+        prop_dict = dict()
+        fp = os.path.join(self.sys_dir, "MasterData", "Properties.xml")
+        assert os.path.exists(fp), "Can't find Properties.xml"
+        with open(fp, 'r', encoding='utf-8') as fh:
+            root=objectify.parse(fh).getroot()
+        for prop in root.property:
+            if prop.name in self.PRO_properties:
+                prop_dict[prop.get('id')] = prop.name + ' [' + prop.unitName + ']'
+
 
         # The file to parse
         fp = os.path.join(self.sys_dir, 'MasterData', self.__INTERMEXCHANGE)
@@ -692,24 +702,40 @@ class Ecospold2Matrix(object):
             # Get list of id, name, unitId, and unitName for all intermediate
             # exchanges
             cpc = None
-            for classification in o.findall(self.__PRE + 'classification'):
-                if classification.find(self.__PRE + 'classificationSystem').text == 'CPC':
-                    cpc = classification.find(self.__PRE + 'classificationValue').text
-            return {'productName': o.name.text,
+
+            for classification in o.classification:
+                if classification.classificationSystem.text == 'CPC':
+                    cpc = classification.classificationValue.text
+
+            meta= {'productName': o.name.text,
                     'unitName': o.unitName.text,
                     'productId': o.get('id'),
                     'unitId': o.get('unitId'),
                     'cpc': cpc,
                     }
 
+            # Among all properties (if any) of exchange (object o)
+            # Store those properties that were selected in PRO_properties
+            try:
+                for prop in o.property:
+                    try:
+                        meta[prop_dict[prop.get('propertyId')]] = prop.get('amount')
+                    except KeyError:
+                        pass
+            except AttributeError:
+                pass
+
+
+            return meta
+
         # Parse XML file
         with open(fp, 'r', encoding="utf-8") as fh:
             root = objectify.parse(fh).getroot()
-            pro_list = [extract_metadata(ds) for ds in root.iterchildren()]
+        pro_list = [extract_metadata(ds) for ds in root.iterchildren()]
 
-            # Convert this list into a dataFrame
-            self.products = pd.DataFrame(pro_list)
-            self.products.index = self.products['productId']
+        # Convert this list into a dataFrame
+        self.products = pd.DataFrame(pro_list)
+        self.products.index = self.products['productId']
 
         # Log event
         sha1 = self.__hash_file(fp)
@@ -1092,7 +1118,6 @@ class Ecospold2Matrix(object):
                                 # Or complain if price already exists
                                 elif not np.allclose([price_org], [price]):
                                     print("WARNING: We have heterogeneous prices")
-                                    IPython.embed()
                                 else:
                                     pass
                 except AttributeError:
