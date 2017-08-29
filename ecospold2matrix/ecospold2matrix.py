@@ -1551,10 +1551,13 @@ class Ecospold2Matrix(object):
             #   with a negative output), while preserving other negative signs
             #   (substitution, etc.)
             sign_changer = self.outflows['amount'] / self.outflows['amount'].abs()
-            
+            bo_waste = sign_changer < 0.0
+
             # Change sign of A-matrix rows where exchange is waste
+            # Reflect this in labels
             self.A = self.A.mul(sign_changer, axis=0)
             col_normalizer = 1 / self.outflows['amount'].abs()
+            self.PRO.loc[bo_waste, 'productName'] = "[treatment for] " + self.PRO.loc[bo_waste, 'productName']
         else:
             col_normalizer = 1 / self.outflows['amount']
 
