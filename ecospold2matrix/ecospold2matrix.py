@@ -1482,6 +1482,10 @@ class Ecospold2Matrix(object):
 
 
         """
+        # add data from outflows (production volumes)
+        self.PRO = self.PRO.merge(self.outflows[['productionVolume']],
+                left_index=True, right_index=True, how='left')
+
 
         self.PRO = self.PRO.reset_index()
 
@@ -2351,6 +2355,9 @@ class Ecospold2Matrix(object):
                       ON u.method=c.method AND u.category=c.category
                                            AND u.indicator=c.indicator"""
         C_long = pd.read_sql(sql_cmd, self.conn)
+        if self.save_interm:
+            C_long.to_csv(os.path.join(self.out_dir, 'C_long.csv'), sep='|',
+                    encoding='utf-8')
 
         # Generate IMP labels
         C_long['impact_label'] = (C_long.method + sep
