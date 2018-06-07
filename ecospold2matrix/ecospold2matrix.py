@@ -2364,6 +2364,7 @@ class Ecospold2Matrix(object):
                                   + C_long.category + sep
                                   + C_long.indicator + sep
                                   + C_long.impact_score_unit)
+        C_long.to_csv('C_long', sep='|', encoding='utf-8')
 
         self.IMP = C_long[['impact_label',
                            'method',
