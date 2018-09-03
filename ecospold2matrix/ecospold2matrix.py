@@ -20,7 +20,7 @@ Credits:
     Ecospold2DataExtractor class in import_ecospold2.py, changeset:
     271:7e67a75ed791; Wed Sep 10; published under BDS-license:
 
-        Copyright (c) 2014, Chris Mutel and ETH Zürich
+        Copyright (c) 2014, Chris Mutel and ETH Zurich
         Neither the name of ETH Zürich nor the names of its contributors may be
         used to endorse or promote products derived from this software without
         specific prior written permission.  THIS SOFTWARE IS PROVIDED BY THE
@@ -1039,7 +1039,7 @@ class Ecospold2Matrix(object):
 
             # Record product Id
             activity_id, productId = file_index.split('_')
-            PRO.ix[file_index, 'productId'] = productId  # TODO: this is actually an exchange ID, no?
+            PRO.loc[file_index, 'productId'] = productId  # TODO: this is actually an exchange ID, no?
 
             # Find activity dataset
             child_ds = root.find(self.__PRE + 'childActivityDataset')
@@ -1052,8 +1052,8 @@ class Ecospold2Matrix(object):
 
                 # Get name, id, etc
                 if entry.tag == self.__PRE + 'activity':
-                    PRO.ix[file_index, 'activityId'] = entry.attrib['id']
-                    PRO.ix[file_index, 'activityName'] = entry.find(
+                    PRO.loc[file_index, 'activityId'] = entry.attrib['id']
+                    PRO.loc[file_index, 'activityName'] = entry.find(
                             self.__PRE + 'activityName').text
                     continue
 
@@ -1062,20 +1062,20 @@ class Ecospold2Matrix(object):
                     # TODO: should this not be findall here?
                     if 'ISIC' in entry.find(self.__PRE +
                                             'classificationSystem').text:
-                        PRO.ix[file_index, 'ISIC'] = entry.find(
+                        PRO.loc[file_index, 'ISIC'] = entry.find(
                                    self.__PRE + 'classificationValue').text
 
                     if 'EcoSpold' in entry.find(
                                  self.__PRE + 'classificationSystem').text:
 
-                        PRO.ix[file_index, 'EcoSpoldCategory'
+                        PRO.loc[file_index, 'EcoSpoldCategory'
                               ] = entry.find(self.__PRE +
                                               'classificationValue').text
                     continue
 
                 # Get geography
                 if entry.tag == self.__PRE + 'geography':
-                    PRO.ix[file_index, 'geography'
+                    PRO.loc[file_index, 'geography'
                           ] = entry.find(self.__PRE + 'shortname').text
                     continue
 
@@ -3068,7 +3068,7 @@ class Ecospold2Matrix(object):
                     )
             WHERE {t}.substid IS NULL
             AND {t}.cas IS NULL;
-            """.format(t=scrub(table)));
+            """.format(t=scrub(table)))
 
         # Match with known synonyms, in decreasing order of accuracy in
         # approximation

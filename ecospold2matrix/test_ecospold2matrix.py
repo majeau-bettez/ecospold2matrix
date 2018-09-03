@@ -3,12 +3,6 @@ import unittest
 import pandas as pd
 import pandas.util.testing as pdt
 import numpy as np
-import json
-import pdb
-try:
-    import IPython
-except:
-    pass
 # pylint: disable-msg=C0103
 
 
@@ -70,7 +64,7 @@ class TestE2M(unittest.TestCase):
                 columns=['fileId','unit'],
                 index = [row[0] for row in list_A_label])
 
-        self.F_label = self.elementary_flows.ix[:,1]
+        self.F_label = self.elementary_flows.iloc[:,1]
         self.F_label.index = self.F_label.values
 
         a = {'BAR_foo':   {'BAR_foo': 0.3,
@@ -333,7 +327,7 @@ class TestE2M(unittest.TestCase):
         """ Test compilation of supply, use and elementary exchange tables,
         aggregating away traceability, from ecoinvent flow lists """
         testflows = self.inflows.copy()
-        testflows.ix[1:2, 'sourceActivityId'] = None
+        testflows.iloc[1:2, 'sourceActivityId'] = None
 
         V0 = pd.DataFrame({'BAR': {'foo': 1, 'waste': np.nan},
                            'PUB': {'foo': np.nan, 'waste': -1}})
