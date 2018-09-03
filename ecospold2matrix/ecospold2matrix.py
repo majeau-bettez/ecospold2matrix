@@ -1472,6 +1472,29 @@ class Ecospold2Matrix(object):
         else:
             col_normalizer = 1 / self.outflows['amount']
 
+        # only waste flows should have a negative value. Other negative values correspond to a mistake in ecoinvent.
+        matrix = self.PRO.copy()
+        matrix = matrix.reset_index()
+        matrix = matrix.set_index('activityId')
+        listissue = []
+        for i in range(0, len(self.inflows)):
+            if self.inflows.amount.iloc[i] < 0:
+                if sign_changer.loc[
+                    self.inflows.sourceActivityId.iloc[i] + '_' + self.inflows.productId.iloc[i]] > 0:
+                    if 'Recycled Content cut-off' not in matrix.activityName.loc[
+                        self.inflows.sourceActivityId.iloc[i]]:
+                        listissue.append(
+                            self.inflows.sourceActivityId.iloc[i] + '_' + self.inflows.productId.iloc[i])
+        for i in range(0, len(listissue)):
+            foo = self.A.loc[listissue[i], :]
+            for j in range(0, len(foo)):
+                if foo.iloc[j] < 0:
+                    self.A.ix[listissue[i], j] *= -1
+                    self.log.info(self.PRO.activityName.loc[self.A.columns[j]]+'('+self.PRO.index[j]+')'+' cannot produce '+
+                                self.PRO.activityName.loc[listissue[i]]+'('+listissue[i]+'). That coefficient is forced'
+                                                                                         ' to be positive through the sanity '
+                                                                                         'check.')
+
         # Normalize flows
         # Reorder all rows and columns to fit labels
         self.A = self.A.mul(col_normalizer, axis=1).reindex(
@@ -2237,7 +2260,7 @@ class Ecospold2Matrix(object):
         self.C = self.C.reindex(self.IMP.index).reindex_axis(self.STR.index, 1)
         self.log.info("Characterisation matching done. C matrix created")
 
-    def prepare_matching_load_parameters():
+    def prepare_matching_load_parameters(self):
         """ Load predefined values and parameters for characterisation matching
         """
 
