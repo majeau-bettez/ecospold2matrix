@@ -1627,7 +1627,7 @@ class Ecospold2Matrix(object):
             # _not_ seem to have negative reference outputs. These must then be
             # identified more crudely based on string recognition, and their
             # rows forced positive in the A-matrix
-            bo_cutoff = self.PRO.activityName.str.contains(__CUTOFFTXT)
+            bo_cutoff = self.PRO.activityName.str.contains(self.__CUTOFFTXT)
             self.A.loc[bo_cutoff,:] = self.A.loc[bo_cutoff,:].abs()
 
         if self.force_all_positive:
