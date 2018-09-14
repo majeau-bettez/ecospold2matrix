@@ -1495,6 +1495,40 @@ class Ecospold2Matrix(object):
 
 
         """
+
+        # gotta rework the indexes of inflows, outflows and elementary exchanges, because again in eco 3.5
+        # there is this annoying number in front of the file index for some processes
+        boo = self.outflows.index.tolist()
+        superindex = []
+        for i in range(0,len(boo)):
+            if len(boo[i].split('_')) == 3:
+                superindex.append(boo[i].split('_')[1]+'_'+boo[i].split('_')[2])
+            elif len(boo[i].split('_')) == 2:
+                superindex.append(boo[i])
+        self.outflows.index = superindex
+
+        self.inflows.index = self.inflows.fileId.tolist()
+        boo = self.inflows.index.tolist()
+        superindex = []
+        for i in range(0,len(boo)):
+            if len(boo[i].split('_')) == 3:
+                superindex.append(boo[i].split('_')[1]+'_'+boo[i].split('_')[2])
+            elif len(boo[i].split('_')) == 2:
+                superindex.append(boo[i])
+        self.inflows['fileId'] = superindex
+        self.inflows.index = superindex
+
+        self.elementary_flows.index = self.elementary_flows.fileId.tolist()
+        boo = self.elementary_flows.index.tolist()
+        superindex = []
+        for i in range(0,len(boo)):
+            if len(boo[i].split('_')) == 3:
+                superindex.append(boo[i].split('_')[1]+'_'+boo[i].split('_')[2])
+            elif len(boo[i].split('_')) == 2:
+                superindex.append(boo[i])
+        self.elementary_flows['fileId'] = superindex
+        self.elementary_flows.index = superindex
+
         # add data from outflows (production volumes)
         self.PRO = self.PRO.merge(self.outflows[['productionVolume']],
                 left_index=True, right_index=True, how='left')
@@ -1593,7 +1627,7 @@ class Ecospold2Matrix(object):
             # _not_ seem to have negative reference outputs. These must then be
             # identified more crudely based on string recognition, and their
             # rows forced positive in the A-matrix
-            bo_cutoff = self.PRO.activityName.str.contains(self.__CUTOFFTXT)
+            bo_cutoff = self.PRO.activityName.str.contains(__CUTOFFTXT)
             self.A.loc[bo_cutoff,:] = self.A.loc[bo_cutoff,:].abs()
 
         if self.force_all_positive:
