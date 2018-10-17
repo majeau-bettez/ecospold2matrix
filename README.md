@@ -74,6 +74,7 @@ Dependencies
 - Six
 - xlrd
 - xlwt
+- h5py
 
 Open Source
 ----------

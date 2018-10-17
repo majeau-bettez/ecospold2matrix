@@ -58,6 +58,7 @@ import csv
 import shelve
 import hashlib
 import sqlite3
+import h5py
 try:
     import IPython
 except:
@@ -1930,12 +1931,13 @@ class Ecospold2Matrix(object):
                                   'SparseMatrixForArda' --> with special
                                                             background
                                                             variable names
+                                  'hdf'          --> HDF5 format using Pandas to_hdf (format=fixed)
 
         This method creates separate files for normalized, symmetric matrices
         (A, F), scaled-up symmetric metrices (Z, G_pro), and supply and use
         data (U, V, V_prod, G_act).
 
-        For Pandas and sparse pickled files, ghis method organizes the
+        For Pandas and sparse pickled files, this method organizes the
         variables in a dictionary, and pickles this dictionary to file.
 
             For sparse pickled file, some labels are not turned into sparse
@@ -2187,6 +2189,44 @@ class Ecospold2Matrix(object):
                                       sep='|')
                 self.G_act.to_csv(os.path.join(csv_dir, 'G_act.csv'), sep='|')
             self.log.info("Final matrices saved as CSV files in " + csv_dir)
+
+        # Write to HDF5 files
+        format_name = 'hdf'
+        if file_formats is None or format_name in file_formats:
+            print('writing hdf6')
+            hdf_dir = os.path.join(self.out_dir, 'hdf')
+            if not os.path.exists(hdf_dir):
+                os.makedirs(hdf_dir)
+            # write processingdata
+            output_file = os.path.join(hdf_dir, '{}.h5'.format(
+                self.project_name.replace(' ', '_')))
+
+            output = h5py.File(output_file, 'w')
+            for key, val in processingdata.items():
+                if not val:
+                    val = ''
+                output.attrs[key] = val
+
+            # write the actual data
+            self.PRO.fillna(0).to_hdf(output_file, key='/PRO', mode='a')
+            self.STR.fillna(0).to_hdf(output_file, key='/STR', mode='a')
+            if self.C is not None:
+                self.C.fillna(0).to_hdf(output_file, key='/C', mode='a')
+                self.IMP.fillna(0).to_hdf(output_file, key='/IMP', mode='a')
+            if self.A is not None:
+                self.A.fillna(0).to_hdf(output_file, key='/A', mode='a')
+                self.F.fillna(0).to_hdf(output_file, key='/F', mode='a')
+            if self.Z is not None:
+                self.Z.fillna(0).to_hdf(output_file, key='/Z', mode='a')
+                self.G_pro.fillna(0).to_hdf(output_file, key='/G', mode='a')
+            if self.U is not None:
+                self.products.fillna(0).to_hdf(output_file, key='/PRODUCTS', mode='a')
+                self.activities.fillna(0).to_hdf(output_file, key='/ACTIVITIES', mode='a')
+                self.U.fillna(0).to_hdf(output_file, key='/U', mode='a')
+                self.V.fillna(0).to_hdf(output_file, key='/V', mode='a')
+                self.V_prodVol.fillna(0).to_hdf(output_file, key='/V_PROD_VOL', mode='a')
+                self.G_act.fillna(0).to_hdf(output_file, key='/G_ACT', mode='a')
+            self.log.info("Final matrices saved as HDF5: {}".format(output_file))
 
     def __hash_file(self, afile):
         """ Get SHA-1 hash of binary file
@@ -2572,7 +2612,7 @@ class Ecospold2Matrix(object):
                   """.format(t=table))
 
         c.execute("""
-                        update {t} set tag='alpha radiation' 
+                        update {t} set tag='alpha radiation'
                         where (name like '%alpha%' or name2 like '%alpha%')
                         and unit='kbq';
                   """.format(t=table))
@@ -3278,7 +3318,7 @@ class Ecospold2Matrix(object):
         --- match alternative name in characterisation method (name2) with
         --- simapro scheme (hardcoded)
         insert into nameHasScheme
-        select distinct n.nameId, s.schemeId 
+        select distinct n.nameId, s.schemeId
         from names n, schemes s
         where n.name in (select name2 from raw_char)
         and s.name='simapro';
