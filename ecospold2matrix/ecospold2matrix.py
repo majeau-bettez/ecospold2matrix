@@ -1007,10 +1007,18 @@ class Ecospold2Matrix(object):
         # reference-product Id)
         data_folder = os.path.join(self.sys_dir, 'datasets')
         spold_files = glob.glob(os.path.join(data_folder, '*.spold'))
-        _in = [os.path.splitext(os.path.basename(fn))[0] for fn in spold_files]
+
+        # in eco3.5 there is an annoying number in front of the file_index
+        listindex = []
+        for fn in spold_files:
+            if len(os.path.splitext(os.path.basename(fn))[0].split('_')) == 2:
+                listindex.append(os.path.splitext(os.path.basename(fn))[0])
+            elif len(os.path.splitext(os.path.basename(fn))[0].split('_')) == 3:
+                listindex.append(os.path.splitext(os.path.basename(fn))[0].split('_')[1] + '_' +
+                                 os.path.splitext(os.path.basename(fn))[0].split('_')[2])
 
         # Initialize empty DataFrame
-        PRO = pd.DataFrame(index=_in, columns=('activityId',
+        PRO = pd.DataFrame(index=listindex, columns=('activityId',
                                                'productId',
                                                'activityName',
                                                'ISIC',
@@ -1032,7 +1040,11 @@ class Ecospold2Matrix(object):
         for sfile in spold_files:
 
             # Remove filename extension
-            file_index = os.path.splitext(os.path.basename(sfile))[0]
+            if len(os.path.splitext(os.path.basename(sfile))[0].split('_')) == 2:
+                file_index = os.path.splitext(os.path.basename(sfile))[0]
+            elif len(os.path.splitext(os.path.basename(sfile))[0].split('_')) == 3:
+                file_index = os.path.splitext(os.path.basename(sfile))[0].split('_')[1] + '_' + \
+                             os.path.splitext(os.path.basename(sfile))[0].split('_')[2]
 
             # Parse xml tree
             root = ET.parse(sfile).getroot()
@@ -1040,6 +1052,7 @@ class Ecospold2Matrix(object):
             # Record product Id
             activity_id, productId = file_index.split('_')
             PRO.loc[file_index, 'productId'] = productId  # TODO: this is actually an exchange ID, no?
+
 
             # Find activity dataset
             child_ds = root.find(self.__PRE + 'childActivityDataset')
@@ -1482,6 +1495,40 @@ class Ecospold2Matrix(object):
 
 
         """
+
+        # gotta rework the indexes of inflows, outflows and elementary exchanges, because again in eco 3.5
+        # there is this annoying number in front of the file index for some processes
+        boo = self.outflows.index.tolist()
+        superindex = []
+        for i in range(0,len(boo)):
+            if len(boo[i].split('_')) == 3:
+                superindex.append(boo[i].split('_')[1]+'_'+boo[i].split('_')[2])
+            elif len(boo[i].split('_')) == 2:
+                superindex.append(boo[i])
+        self.outflows.index = superindex
+
+        self.inflows.index = self.inflows.fileId.tolist()
+        boo = self.inflows.index.tolist()
+        superindex = []
+        for i in range(0,len(boo)):
+            if len(boo[i].split('_')) == 3:
+                superindex.append(boo[i].split('_')[1]+'_'+boo[i].split('_')[2])
+            elif len(boo[i].split('_')) == 2:
+                superindex.append(boo[i])
+        self.inflows['fileId'] = superindex
+        self.inflows.index = superindex
+
+        self.elementary_flows.index = self.elementary_flows.fileId.tolist()
+        boo = self.elementary_flows.index.tolist()
+        superindex = []
+        for i in range(0,len(boo)):
+            if len(boo[i].split('_')) == 3:
+                superindex.append(boo[i].split('_')[1]+'_'+boo[i].split('_')[2])
+            elif len(boo[i].split('_')) == 2:
+                superindex.append(boo[i])
+        self.elementary_flows['fileId'] = superindex
+        self.elementary_flows.index = superindex
+
         # add data from outflows (production volumes)
         self.PRO = self.PRO.merge(self.outflows[['productionVolume']],
                 left_index=True, right_index=True, how='left')
@@ -3724,4 +3771,3 @@ class Ecospold2Matrix(object):
 def scrub(table_name):
     return ''.join( chr for chr in table_name
                     if chr.isalnum() or chr == '_')
-
