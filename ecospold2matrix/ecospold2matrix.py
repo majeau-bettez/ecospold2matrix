@@ -21,7 +21,7 @@ Credits:
     271:7e67a75ed791; Wed Sep 10; published under BDS-license:
 
         Copyright (c) 2014, Chris Mutel and ETH Zurich
-        Neither the name of ETH Zürich nor the names of its contributors may be
+        Neither the name of ETH Zurich nor the names of its contributors may be
         used to endorse or promote products derived from this software without
         specific prior written permission.  THIS SOFTWARE IS PROVIDED BY THE
         COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
@@ -1535,6 +1535,8 @@ class Ecospold2Matrix(object):
 
 
         self.PRO = self.PRO.reset_index()
+
+        del self.products.index.name
 
         # add data from self.products
         self.PRO = self.PRO.merge(self.products,
