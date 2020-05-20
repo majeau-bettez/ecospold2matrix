@@ -38,7 +38,7 @@ Credits:
 
 
 """
-
+import pdb
 import os
 import glob
 import io
@@ -694,14 +694,14 @@ class Ecospold2Matrix(object):
         method extract_technosphere_metadata from class Ecospold2DataExtractor
         """
         # First get UUID of properties to extract
-        prop_dict = dict()
+        self._prop_dict = dict()
         fp = os.path.join(self.sys_dir, "MasterData", "Properties.xml")
         assert os.path.exists(fp), "Can't find Properties.xml"
         with open(fp, 'r', encoding='utf-8') as fh:
             root=objectify.parse(fh).getroot()
         for prop in root.property:
             if prop.name in self.PRO_properties:
-                prop_dict[prop.get('id')] = prop.name + ' [' + prop.unitName + ']'
+                self._prop_dict[prop.get('id')] = prop.name + ' [' + prop.unitName + ']'
 
 
         # The file to parse
@@ -731,7 +731,7 @@ class Ecospold2Matrix(object):
             try:
                 for prop in o.property:
                     try:
-                        meta[prop_dict[prop.get('propertyId')]] = prop.get('amount')
+                        meta[self._prop_dict[prop.get('propertyId')]] = prop.get('amount')
                     except KeyError:
                         pass
             except AttributeError:
@@ -1128,9 +1128,10 @@ class Ecospold2Matrix(object):
                     outputgroup = exchange.find(self.__PRE + 'outputGroup').text  # if not output, skip & catch error
                     # Select only main product for each file
                     if outputgroup == '0' and exchange.get('intermediateExchangeId') == productId:
-                        # Go through properties for prices
                         props = exchange.findall(self.__PRE + 'property')
                         for prop in props:
+                            # Go through properties for prices
+                            # TODO - There is really no specific reason why this property should be treated separately
                             if prop.find(self.__PRE + 'name').text == 'price':
                                 price = np.float(prop.get('amount'))
                                 price_unit = prop.find(self.__PRE + 'unitName').text
@@ -1143,6 +1144,13 @@ class Ecospold2Matrix(object):
                                 elif not np.allclose([price_org], [price]):
                                     print("WARNING: We have heterogeneous prices")
                                 else:
+                                    pass
+                            # Get all properties of interest (i.e. defined in PRO_properties)
+                            else:
+                                try:
+                                    cx = self._prop_dict[prop.get('propertyId')]
+                                    self.PRO.loc[file_index, cx] = prop.get('amount')
+                                except KeyError:
                                     pass
                 except AttributeError:
                     pass
@@ -1181,6 +1189,13 @@ class Ecospold2Matrix(object):
         path = glob.glob(os.path.join(old_dir, '*IMP*.csv'))[0]
         self.IMP_old = pd.read_csv(path, sep=sep)
 
+    def get_all_properties(self):
+        """ Simple method to output a list of all properties found in Properties.xml, for inspection """
+        fp = os.path.join(self.sys_dir, "MasterData", "Properties.xml")
+        assert os.path.exists(fp), "Can't find Properties.xml"
+        with open(fp, 'r', encoding='utf-8') as fh:
+            root=objectify.parse(fh).getroot()
+        return [prop.name for prop in root.property]
     # =========================================================================
     # CLEAN UP FUNCTIONS: if imperfections in ecospold data
     def __find_unsourced_flows(self):
