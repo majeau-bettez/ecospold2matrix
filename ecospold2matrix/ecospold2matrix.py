@@ -1749,52 +1749,56 @@ class Ecospold2Matrix(object):
         infls = remove_productId_from_fileId(self.inflows)
         infls.replace(to_replace=[None], value='', inplace=True)
 
+
         # Pivot flows into Use and Supply and extension tables
         self.U = pd.pivot_table(infls,
                                 index=['sourceActivityId', 'productId'],
                                 columns='activityId',
                                 values='amount',
-                                aggfunc=np.sum)
+                                aggfunc=np.sum).reindex(columns=self.activities.index)
+        if self.nan2null:
+            self.U.fillna(0, inplace=True)
 
-        self.V = pd.pivot_table(outfls,
-                                index='productId',
-                                columns='activityId',
-                                values='amount',
-                                aggfunc=np.sum)
+        if make_untraceable:
+            self.log.info("starting groupby aggregation")
+            self.U = self.U.groupby(level='productId').sum()
+            self.log.info("Done aggregating")
+            self.U = self.U.reindex(index=self.products.index)
+            if self.nan2null:
+                self.U.fillna(0, inplace=True)
+            self.log.info("Done reindexing")
+
+        self.U = self.U.astype(self.sformat)
+
+
+        self.V = pd.pivot_table(outfls, index='productId', columns='activityId', values='amount', aggfunc=np.sum
+                ).reindex(index=self.products.index, columns=self.activities.index)
+        if self.nan2null:
+            self.V.fillna(0, inplace=True)
+        self.V = self.V.astype(self.sformat)
 
         self.V_prodVol = pd.pivot_table(outfls,
                                         index='productId',
                                         columns='activityId',
                                         values='productionVolume',
-                                        aggfunc=np.sum)
+                                        aggfunc=np.sum).reindex(index=self.products.index,
+                                                                columns=self.activities.index)
+
+        if self.nan2null:
+            self.V_prodVol.fillna(0, inplace=True)
+        self.V_prodVol = self.V_prodVol.astype(self.sformat)
 
         self.G_act = pd.pivot_table(elfls,
                                     index='elementaryExchangeId',
                                     columns='activityId',
                                     values='amount',
-                                    aggfunc=np.sum)
-
-        # ensure all products are covered in supply table
-        self.V = self.V.reindex(index=self.products.index,
-                                columns=self.activities.index)
-        self.V_prodVol = self.V_prodVol.reindex(index=self.products.index,
-                                                columns=self.activities.index)
-        self.U = self.U.reindex(columns=self.activities.index)
-        self.G_act = self.G_act.reindex(index=self.STR.index,
-                                        columns=self.activities.index)
-
-        if make_untraceable:
-            # Optionally aggregate away sourceActivity dimension, more IO-like
-            # Supply and untraceable-Use tables...
-            self.U = self.U.groupby(level='productId').sum()
-            self.U = self.U.reindex(index=self.products.index,
-                                    columns=self.activities.index)
-            self.log.info("Aggregated all sources in U, made untraceable")
-
+                                    aggfunc=np.sum).reindex(index=self.STR.index, columns=self.activities.index)
         if self.nan2null:
-            self.U.fillna(0, inplace=True)
-            self.V.fillna(0, inplace=True)
             self.G_act.fillna(0, inplace=True)
+        self.G_act = self.G_act
+
+
+
 
     # =========================================================================
     # SANITY CHECK: Compare calculated cummulative LCI with official values
