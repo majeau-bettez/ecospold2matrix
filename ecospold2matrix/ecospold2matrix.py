@@ -701,7 +701,10 @@ class Ecospold2Matrix(object):
             root=objectify.parse(fh).getroot()
         for prop in root.property:
             if prop.name in self.PRO_properties:
-                self._prop_dict[prop.get('id')] = prop.name + ' [' + prop.unitName + ']'
+                try:
+                    self._prop_dict[prop.get('id')] = prop.name + ' [' + prop.unitName + ']'
+                except AttributeError: # Most likely the unit is not defined
+                    self._prop_dict[prop.get('id')] = prop.name + ' [unitless]'
 
 
         # The file to parse
