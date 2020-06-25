@@ -89,6 +89,7 @@ class Ecospold2Matrix(object):
     __ELEXCHANGE = 'ElementaryExchanges.xml'
     __INTERMEXCHANGE = 'IntermediateExchanges.xml'
     __ACTIVITYINDEX = 'ActivityIndex.xml'
+    __ACTIVITYNAMES = 'ActivityNames.xml'
     __DB_CHARACTERISATION = 'characterisation.db'
     rtolmin = 1e-16  # 16 significant digits being roughly the limit of float64
     __TechnologyLevels = pd.Series(
@@ -786,6 +787,7 @@ class Ecospold2Matrix(object):
                              act.attrib['startDate'],
                              act.attrib['endDate']])
 
+
         # Remove any potential duplicates
         act_list, _, _, _ = self.__deduplicate(act_list, 0, 'activity_list')
 
@@ -799,6 +801,20 @@ class Ecospold2Matrix(object):
                                        index=[row[0] for row in act_list])
         self.activities['activityType'
                        ] = self.activities['activityType'].astype(int)
+
+        # Parse XML file with activity names
+        activity_name_file = os.path.join(self.sys_dir, 'MasterData', self.__ACTIVITYNAMES)
+        with open(activity_name_file, 'r') as f:
+            root = objectify.parse(f).getroot()
+        names = dict()
+        for act in root.activityName:
+            names[act.attrib['id']] = act.name
+        names = pd.DataFrame.from_dict(names, orient='index').squeeze().astype('str')
+        names.name = 'activityName'
+
+        # Merge the two datasets
+        self.activities = pd.merge(self.activities, names, how='left',
+                                   left_on='activityNameId', right_index=True)
 
         # Log event
         sha1 = self.__hash_file(activity_file)
