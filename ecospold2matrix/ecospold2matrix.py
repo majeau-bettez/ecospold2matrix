@@ -21,7 +21,7 @@ Credits:
     271:7e67a75ed791; Wed Sep 10; published under BDS-license:
 
         Copyright (c) 2014, Chris Mutel and ETH Zurich
-        Neither the name of ETH Zürich nor the names of its contributors may be
+        Neither the name of ETH Zurich nor the names of its contributors may be
         used to endorse or promote products derived from this software without
         specific prior written permission.  THIS SOFTWARE IS PROVIDED BY THE
         COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
@@ -38,7 +38,7 @@ Credits:
 
 
 """
-
+import pdb
 import os
 import glob
 import io
@@ -89,6 +89,7 @@ class Ecospold2Matrix(object):
     __ELEXCHANGE = 'ElementaryExchanges.xml'
     __INTERMEXCHANGE = 'IntermediateExchanges.xml'
     __ACTIVITYINDEX = 'ActivityIndex.xml'
+    __ACTIVITYNAMES = 'ActivityNames.xml'
     __DB_CHARACTERISATION = 'characterisation.db'
     rtolmin = 1e-16  # 16 significant digits being roughly the limit of float64
     __TechnologyLevels = pd.Series(
@@ -97,9 +98,9 @@ class Ecospold2Matrix(object):
     __CUTOFFTXT ="Recycled Content cut-off"
 
     def __init__(self, sys_dir, project_name, out_dir='.', lci_dir=None,
-            positive_waste=False, nan2null=False, PRO_properties=("dry mass", "wet mass"),
+            positive_waste=False, nan2null=True, PRO_properties=("dry mass", "wet mass"),
             PRO_order=['ISIC', 'activityName'], STR_order=['comp', 'name', 'subcomp'],
-            verbose=True, version_name='x.x', characterisation_file=None):
+            verbose=True, version_name='x.x', characterisation_file=None, float32=False):
 
         """ Defining an ecospold2matrix object, with key parameters that
         determine how the data will be processes.
@@ -230,6 +231,18 @@ class Ecospold2Matrix(object):
         self.STR_order = STR_order
         self.PRO_properties = PRO_properties
 
+        if nan2null:
+            compressed_data = 0.0
+        else:
+            compressed_data = np.nan
+
+        if float32:
+            self.format = 'float32'
+            self.sformat = pd.SparseDtype('float32', compressed_data)
+        else:
+            self.format = 'float64'
+            self.sformat = pd.SparseDtype('float64', compressed_data)
+
         # PROJECT-WIDE OPTIONS, NOT FOR THE USUAL USER, NOT INIT ARGUMENT
         self.force_all_positive = False # Force all product flows positive,
 
@@ -324,7 +337,6 @@ class Ecospold2Matrix(object):
                         [Default: None, save to all possible file formats]
                          Options: 'Pandas'       --> pandas dataframes
                                   'csv'          --> text with separator =  '|'
-                                  'SparsePandas' --> sparse pandas dataframes
                                   'SparseMatrix' --> scipy AND matlab sparse
                                   'SparseMatrixForArda' --> with special
                                                             background
@@ -683,14 +695,17 @@ class Ecospold2Matrix(object):
         method extract_technosphere_metadata from class Ecospold2DataExtractor
         """
         # First get UUID of properties to extract
-        prop_dict = dict()
+        self._prop_dict = dict()
         fp = os.path.join(self.sys_dir, "MasterData", "Properties.xml")
         assert os.path.exists(fp), "Can't find Properties.xml"
         with open(fp, 'r', encoding='utf-8') as fh:
             root=objectify.parse(fh).getroot()
         for prop in root.property:
             if prop.name in self.PRO_properties:
-                prop_dict[prop.get('id')] = prop.name + ' [' + prop.unitName + ']'
+                try:
+                    self._prop_dict[prop.get('id')] = prop.name + ' [' + prop.unitName + ']'
+                except AttributeError: # Most likely the unit is not defined
+                    self._prop_dict[prop.get('id')] = prop.name + ' [unitless]'
 
 
         # The file to parse
@@ -720,7 +735,7 @@ class Ecospold2Matrix(object):
             try:
                 for prop in o.property:
                     try:
-                        meta[prop_dict[prop.get('propertyId')]] = prop.get('amount')
+                        meta[self._prop_dict[prop.get('propertyId')]] = prop.get('amount')
                     except KeyError:
                         pass
             except AttributeError:
@@ -772,6 +787,7 @@ class Ecospold2Matrix(object):
                              act.attrib['startDate'],
                              act.attrib['endDate']])
 
+
         # Remove any potential duplicates
         act_list, _, _, _ = self.__deduplicate(act_list, 0, 'activity_list')
 
@@ -785,6 +801,20 @@ class Ecospold2Matrix(object):
                                        index=[row[0] for row in act_list])
         self.activities['activityType'
                        ] = self.activities['activityType'].astype(int)
+
+        # Parse XML file with activity names
+        activity_name_file = os.path.join(self.sys_dir, 'MasterData', self.__ACTIVITYNAMES)
+        with open(activity_name_file, 'r') as f:
+            root = objectify.parse(f).getroot()
+        names = dict()
+        for act in root.activityName:
+            names[act.attrib['id']] = act.name
+        names = pd.DataFrame.from_dict(names, orient='index').squeeze().astype('str')
+        names.name = 'activityName'
+
+        # Merge the two datasets
+        self.activities = pd.merge(self.activities, names, how='left',
+                                   left_on='activityNameId', right_index=True)
 
         # Log event
         sha1 = self.__hash_file(activity_file)
@@ -900,11 +930,13 @@ class Ecospold2Matrix(object):
                                                           'sourceActivityId',
                                                           'productId',
                                                           'amount'])
+        self.inflows['amount'].astype(self.format, copy=False)
 
         self.elementary_flows = pd.DataFrame(elementary_flows,
                                              columns=['fileId',
                                                       'elementaryExchangeId',
                                                       'amount'])
+        self.elementary_flows['amount'].astype(self.format, copy=False)
 
         out = pd.DataFrame(outflow_list,
                            columns=['fileId',
@@ -916,6 +948,8 @@ class Ecospold2Matrix(object):
         out['productionVolume'] = out['productionVolume'].astype(float)
         out['outputGroup'] = out['outputGroup'].astype(int)
         self.outflows = out
+        self.outflows['amount'].astype(self.format, copy=False)
+
 
     def build_STR(self):
         """ Parses ElementaryExchanges.xml to builds stressor labels
@@ -962,12 +996,7 @@ class Ecospold2Matrix(object):
 
         # organize in pandas DataFrame
         self.STR.index = self.STR['id']
-        self.STR = self.STR.reindex_axis(['id',
-                                          'name',
-                                          'unit',
-                                          'cas',
-                                          'comp',
-                                          'subcomp'], axis=1)
+        self.STR = self.STR.reindex(['id', 'name', 'unit', 'cas', 'comp', 'subcomp'], axis=1)
         self.STR = self.STR.sort_values(by=self.STR_order)
 
         # Log event
@@ -1096,7 +1125,7 @@ class Ecospold2Matrix(object):
                 # Get Technology
                 try:
                     if entry.tag == self.__PRE + 'technology':
-                        PRO.ix[file_index, 'technologyLevel'
+                        PRO.loc[file_index, 'technologyLevel'
                               ] = entry.attrib['technologyLevel']
                         continue
                 except:
@@ -1107,7 +1136,7 @@ class Ecospold2Matrix(object):
 
                 # Find MacroEconomic scenario
                 if entry.tag == self.__PRE + 'macroEconomicScenario':
-                    PRO.ix[file_index, 'macroEconomicScenario'
+                    PRO.loc[file_index, 'macroEconomicScenario'
                           ] = entry.find(self.__PRE + 'name').text
                     continue
 
@@ -1118,28 +1147,36 @@ class Ecospold2Matrix(object):
                     outputgroup = exchange.find(self.__PRE + 'outputGroup').text  # if not output, skip & catch error
                     # Select only main product for each file
                     if outputgroup == '0' and exchange.get('intermediateExchangeId') == productId:
-                        # Go through properties for prices
                         props = exchange.findall(self.__PRE + 'property')
                         for prop in props:
+                            # Go through properties for prices
+                            # TODO - There is really no specific reason why this property should be treated separately
                             if prop.find(self.__PRE + 'name').text == 'price':
                                 price = np.float(prop.get('amount'))
                                 price_unit = prop.find(self.__PRE + 'unitName').text
 
                                 # Add new price if initially blank
-                                price_org = PRO.ix[file_index, 'price']
+                                price_org = PRO.loc[file_index, 'price']
                                 if price_org is np.nan:
-                                    PRO.ix[file_index, ['price', 'priceUnit']] = [price, price_unit]
+                                    PRO.loc[file_index, ['price', 'priceUnit']] = [price, price_unit]
                                 # Or complain if price already exists
                                 elif not np.allclose([price_org], [price]):
                                     print("WARNING: We have heterogeneous prices")
                                 else:
+                                    pass
+                            # Get all properties of interest (i.e. defined in PRO_properties)
+                            else:
+                                try:
+                                    cx = self._prop_dict[prop.get('propertyId')]
+                                    self.PRO.loc[file_index, cx] = prop.get('amount')
+                                except KeyError:
                                     pass
                 except AttributeError:
                     pass
 
 
             # quality check of id and index
-            if file_index.split('_')[0] != PRO.ix[file_index, 'activityId']:
+            if file_index.split('_')[0] != PRO.loc[file_index, 'activityId']:
                 self.log.warn('Index based on file {} and activityId in the'
                               ' xml data are different'.format(str(sfile)))
 
@@ -1147,7 +1184,7 @@ class Ecospold2Matrix(object):
         PRO['technologyLevel'] = PRO['technologyLevel'].fillna(0).astype(int)
         for i in self.__TechnologyLevels.index:
                 bo = PRO['technologyLevel'] == i
-                PRO.ix[bo, 'technologyLevel'] = self.__TechnologyLevels[i]
+                PRO.loc[bo, 'technologyLevel'] = self.__TechnologyLevels[i]
         self.PRO = PRO.sort_values(by=self.PRO_order)
 
     def extract_old_labels(self, old_dir, sep='|'):
@@ -1171,6 +1208,13 @@ class Ecospold2Matrix(object):
         path = glob.glob(os.path.join(old_dir, '*IMP*.csv'))[0]
         self.IMP_old = pd.read_csv(path, sep=sep)
 
+    def get_all_properties(self):
+        """ Simple method to output a list of all properties found in Properties.xml, for inspection """
+        fp = os.path.join(self.sys_dir, "MasterData", "Properties.xml")
+        assert os.path.exists(fp), "Can't find Properties.xml"
+        with open(fp, 'r', encoding='utf-8') as fh:
+            root=objectify.parse(fh).getroot()
+        return [prop.name for prop in root.property]
     # =========================================================================
     # CLEAN UP FUNCTIONS: if imperfections in ecospold data
     def __find_unsourced_flows(self):
@@ -1364,12 +1408,12 @@ class Ecospold2Matrix(object):
                                               aflow.fileId,
                                               debug_file))
 
-                    self.PRO.ix[boPro, :].to_csv(debug_file, sep='|',
+                    self.PRO.loc[boPro, :].to_csv(debug_file, sep='|',
                                                  encoding='utf-8')
 
                 # Based on choice of act_id, record the selected source
                 # activity in inflows
-                self.inflows.ix[aflow['index'], 'sourceActivityId'] = act_id
+                self.inflows.loc[aflow['index'], 'sourceActivityId'] = act_id
 
             elif aflow.activityType == '1':
                 msg = ("A market with untraceable inputs:{}. This is not yet"
@@ -1449,11 +1493,11 @@ class Ecospold2Matrix(object):
 
 
                 # add row to self.PRO
-                self.PRO.ix[i, copied_cols] = row[copied_cols]
-                self.PRO.ix[i, 'comment'] = 'DUMMY PRODUCTION'
+                self.PRO.loc[i, copied_cols] = row[copied_cols]
+                self.PRO.loc[i, 'comment'] = 'DUMMY PRODUCTION'
 
                 # add new row in outputflow
-                self.outflows.ix[i, ['fileId', 'productId', 'amount']
+                self.outflows.loc[i, ['fileId', 'productId', 'amount']
                                 ] = [i, row['productId'], 1.0]
 
             self.log.warn("Added dummy productions to PRO, which"
@@ -1537,6 +1581,8 @@ class Ecospold2Matrix(object):
 
         self.PRO = self.PRO.reset_index()
 
+        self.products.index.name = None
+
         # add data from self.products
         self.PRO = self.PRO.merge(self.products,
                                             how='left',
@@ -1584,17 +1630,23 @@ class Ecospold2Matrix(object):
         # By pivot tables, arrange all intermediate and elementary flows as
         # matrices
         self.log.info("Starting to assemble the matrices")
-        self.A = pd.pivot(
-                self.inflows['sourceActivityId'] + '_' + self.inflows['productId'],
-                self.inflows['fileId'],
-                self.inflows['amount']
-                ).reindex(index=self.PRO.index, columns=self.PRO.index)
+        self.inflows['row_index'] = self.inflows['sourceActivityId'] + '_' + self.inflows['productId']
+        self.A = self.inflows.pivot(index='row_index', columns='fileId', values='amount').reindex(
+                index=self.PRO.index, columns=self.PRO.index)
 
         self.F = pd.pivot_table(self.elementary_flows,
                            values='amount',
                            index='elementaryExchangeId',
-                           columns='fileId').reindex(index=self.STR.index,
-                                                     columns=self.PRO.index)
+                           columns='fileId').reindex(index=self.STR.index, columns=self.PRO.index)
+
+        if self.nan2null:
+            self.log.info("fillna")
+            self.A.fillna(0, inplace=True)
+            self.F.fillna(0, inplace=True)
+
+        # Compress
+        self.A = self.A.astype(self.sformat)
+        self.F = self.F.astype(self.sformat)
 
         self.log.info("Starting normalizing matrices")
         if self.positive_waste:
@@ -1616,6 +1668,8 @@ class Ecospold2Matrix(object):
 
         # Normalize columns (technology descriptions)
         # Reorder all rows and columns to fit labels
+        #
+        # TODO: I think we are duplicating it with the reindex
         self.A = self.A.mul(col_normalizer, axis=1).reindex(
                                                         index=self.PRO.index,
                                                         columns=self.PRO.index)
@@ -1641,10 +1695,6 @@ class Ecospold2Matrix(object):
                                  "made positive now".format(nb_neg))
                 # TODO: log which negative flows turned positive
 
-        self.log.info("fillna")
-        if self.nan2null:
-            self.A.fillna(0, inplace=True)
-            self.F.fillna(0, inplace=True)
 
     def scale_up_AF(self):
         """ Calculate absolute flow matrix from A, F, and production Volumes
@@ -1718,52 +1768,56 @@ class Ecospold2Matrix(object):
         infls = remove_productId_from_fileId(self.inflows)
         infls.replace(to_replace=[None], value='', inplace=True)
 
+
         # Pivot flows into Use and Supply and extension tables
         self.U = pd.pivot_table(infls,
                                 index=['sourceActivityId', 'productId'],
                                 columns='activityId',
                                 values='amount',
-                                aggfunc=np.sum)
+                                aggfunc=np.sum).reindex(columns=self.activities.index)
+        if self.nan2null:
+            self.U.fillna(0, inplace=True)
 
-        self.V = pd.pivot_table(outfls,
-                                index='productId',
-                                columns='activityId',
-                                values='amount',
-                                aggfunc=np.sum)
+        if make_untraceable:
+            self.log.info("starting groupby aggregation")
+            self.U = self.U.groupby(level='productId').sum()
+            self.log.info("Done aggregating")
+            self.U = self.U.reindex(index=self.products.index)
+            if self.nan2null:
+                self.U.fillna(0, inplace=True)
+            self.log.info("Done reindexing")
+
+        self.U = self.U.astype(self.sformat)
+
+
+        self.V = pd.pivot_table(outfls, index='productId', columns='activityId', values='amount', aggfunc=np.sum
+                ).reindex(index=self.products.index, columns=self.activities.index)
+        if self.nan2null:
+            self.V.fillna(0, inplace=True)
+        self.V = self.V.astype(self.sformat)
 
         self.V_prodVol = pd.pivot_table(outfls,
                                         index='productId',
                                         columns='activityId',
                                         values='productionVolume',
-                                        aggfunc=np.sum)
+                                        aggfunc=np.sum).reindex(index=self.products.index,
+                                                                columns=self.activities.index)
+
+        if self.nan2null:
+            self.V_prodVol.fillna(0, inplace=True)
+        self.V_prodVol = self.V_prodVol.astype(self.sformat)
 
         self.G_act = pd.pivot_table(elfls,
                                     index='elementaryExchangeId',
                                     columns='activityId',
                                     values='amount',
-                                    aggfunc=np.sum)
-
-        # ensure all products are covered in supply table
-        self.V = self.V.reindex(index=self.products.index,
-                                columns=self.activities.index)
-        self.V_prodVol = self.V_prodVol.reindex(index=self.products.index,
-                                                columns=self.activities.index)
-        self.U = self.U.reindex(columns=self.activities.index)
-        self.G_act = self.G_act.reindex(index=self.STR.index,
-                                        columns=self.activities.index)
-
-        if make_untraceable:
-            # Optionally aggregate away sourceActivity dimension, more IO-like
-            # Supply and untraceable-Use tables...
-            self.U = self.U.groupby(level='productId').sum()
-            self.U = self.U.reindex(index=self.products.index,
-                                    columns=self.activities.index)
-            self.log.info("Aggregated all sources in U, made untraceable")
-
+                                    aggfunc=np.sum).reindex(index=self.STR.index, columns=self.activities.index)
         if self.nan2null:
-            self.U.fillna(0, inplace=True)
-            self.V.fillna(0, inplace=True)
             self.G_act.fillna(0, inplace=True)
+        self.G_act = self.G_act
+
+
+
 
     # =========================================================================
     # SANITY CHECK: Compare calculated cummulative LCI with official values
@@ -1823,7 +1877,7 @@ class Ecospold2Matrix(object):
                 if entry.tag == self.__PRE + 'elementaryExchange':
                     try:
                         # Get amount
-                        self.E.ix[entry.attrib['elementaryExchangeId'],
+                        self.E.loc[entry.attrib['elementaryExchangeId'],
                                     current_id] = float(entry.attrib['amount'])
                     except:
                         _amount = entry.attrib.get('amount', 'not found')
@@ -1973,7 +2027,6 @@ class Ecospold2Matrix(object):
 
                          Options: 'Pandas'       --> pandas dataframes
                                   'csv'          --> text with separator =  '|'
-                                  'SparsePandas' --> sparse pandas dataframes
                                   'SparseMatrix' --> scipy AND matlab sparse
                                   'SparseMatrixForArda' --> with special
                                                             background
@@ -2032,7 +2085,7 @@ class Ecospold2Matrix(object):
 
             # save dictionary also as mat file
             if mat:
-                scipy.io.savemat(filename, adict, do_compression=True)
+                scipy.io.savemat(filename + '.mat', adict, do_compression=True)
                 sha1 = self.__hash_file(filename + '.mat')
                 msg = "{} saved in {} with SHA-1 of {}"
                 self.log.info(msg.format(what_it_is, filename + '.mat', sha1))
@@ -2122,32 +2175,6 @@ class Ecospold2Matrix(object):
                            self.STR,
                            self.U, self.V, self.V_prodVol, self.G_act)
 
-        # save sparse Dataframes
-        format_name = 'SparsePandas'
-        if file_formats is None or format_name in file_formats:
-
-            file_pr = os.path.join(self.out_dir,
-                                   self.project_name + format_name)
-            if self.A is not None:
-                pickle_symm_norm(PRO=self.PRO,
-                                 STR=self.STR,
-                                 IMP=self.IMP,
-                                 A=self.A.to_sparse(),
-                                 F=self.F.to_sparse(),
-                                 C=self.C.to_sparse())
-            if self.Z is not None:
-                Z = self.Z.to_sparse()
-                G_pro = self.G_pro.to_sparse()
-                pickle_symm_scaled(self.PRO, self.STR, Z, G_pro)
-            if self.U is not None:
-                U = self.U.to_sparse()
-                V = self.V.to_sparse()
-                V_prodVol = self.V_prodVol.to_sparse()
-                G_act = self.G_act.to_sparse()
-                pickle_sut(self.products,
-                           self.activities,
-                           self.STR,
-                           U, V, V_prodVol, G_act)
 
         # save as sparse Matrices (both pickled and mat-files)
         format_name = 'SparseMatrix'
@@ -2175,20 +2202,20 @@ class Ecospold2Matrix(object):
             STR_header = self.STR.columns.values
             STR_header = STR_header.reshape((1, -1))
 
-            C = scipy.sparse.csc_matrix(self.C.fillna(0))
+            C = scipy.sparse.csc_matrix(self.C.sparse.to_coo())
             IMP_header = self.IMP.columns.values
             IMP_header = IMP_header.reshape((1, -1))
 
             if self.A is not None:
-                A = scipy.sparse.csc_matrix(self.A.fillna(0))
-                F = scipy.sparse.csc_matrix(self.F.fillna(0))
+                A = scipy.sparse.csc_matrix(self.A.sparse.to_coo())
+                F = scipy.sparse.csc_matrix(self.F.sparse.to_coo())
                 pickle_symm_norm(PRO=PRO, STR=STR, IMP=IMP, A=A, F=F, C=C,
                         PRO_header=PRO_header, STR_header=STR_header,
                         IMP_header=IMP_header, mat=True,
                         for_arda_background=for_arda_background)
             if self.Z is not None:
-                Z = scipy.sparse.csc_matrix(self.Z.fillna(0))
-                G_pro = scipy.sparse.csc_matrix(self.G_pro.fillna(0))
+                Z = scipy.sparse.csc_matrix(self.Z.sparse.to_coo())
+                G_pro = scipy.sparse.csc_matrix(self.G_pro.sparse.to_coo())
                 pickle_symm_scaled(PRO, STR, Z, G_pro, mat=True)
             if self.U is not None:
                 U = scipy.sparse.csc_matrix(self.U.fillna(0))
@@ -2296,7 +2323,7 @@ class Ecospold2Matrix(object):
             f = open(afile, 'rb')
             opened_here = True
         # Or afile can be a filehandle
-        except:
+        except TypeError:
             f = afile
             opened_here = False
 
@@ -2430,18 +2457,36 @@ class Ecospold2Matrix(object):
 
         # Complement ecoinvent elementary flows (stressors s) with matching
         # characterisation factors (char c) and its units (units u)
-        sql_cmd = """ SELECT s.name, s.comp, s.subcomp, s.unit, s.stressorId,
-                             c.method, c.category, c.indicator, c.CF,
-                             u.impact_score_unit
-                      FROM stressors s
-                      LEFT JOIN char c
-                      ON c.name = s.name AND c.compartment=s.comp
-                                         AND c.subcompartment=s.subcomp
-                                         AND s.unit=c.exchange_unit
-                      LEFT JOIN units u
-                      ON u.method=c.method AND u.category=c.category
-                                           AND u.indicator=c.indicator"""
-        C_long = pd.read_sql(sql_cmd, self.conn)
+
+        try:  # Original approach (ecoinvent ca. 3.2)
+            sql_cmd = """ SELECT s.name, s.comp, s.subcomp, s.unit, s.stressorId,
+                                 c.method, c.category, c.indicator, c.CF,
+                                 u.impact_score_unit
+                          FROM stressors s
+                          LEFT JOIN char c
+                          ON c.name = s.name AND c.compartment=s.comp
+                                             AND c.subcompartment=s.subcomp
+                                             AND s.unit=c.exchange_unit
+                          LEFT JOIN units u
+                          ON u.method=c.method AND u.category=c.category
+                                               AND u.indicator=c.indicator"""
+            C_long = pd.read_sql(sql_cmd, self.conn)
+
+        except:
+
+            # Match only based on name, comp and subcomp, not units, since ecoinvent 3.4
+            sql_cmd = """ SELECT s.name, s.comp, s.subcomp, s.unit, s.stressorId,
+                                 c.method, c.category, c.indicator, c.CF,
+                                 u.impact_score_unit
+                          FROM stressors s
+                          LEFT JOIN char c
+                          ON c.name = s.name AND c.compartment=s.comp
+                                             AND c.subcompartment=s.subcomp
+                          LEFT JOIN units u
+                          ON u.method=c.method AND u.category=c.category
+                                               AND u.indicator=c.indicator"""
+            C_long = pd.read_sql(sql_cmd, self.conn)
+
         if self.save_interm:
             C_long.to_csv(os.path.join(self.out_dir, 'C_long.csv'), sep='|',
                     encoding='utf-8')
@@ -2466,7 +2511,11 @@ class Ecospold2Matrix(object):
                                 columns='stressorId',
                                 index='impact_label')
 
-        self.C = self.C.reindex(self.IMP.index).reindex_axis(self.STR.index, 1)
+        self.C = self.C.reindex(self.IMP.index).reindex(self.STR.index, axis=1)
+        if self.nan2null:
+            self.C = self.C.fillna(0.)
+        
+        self.C = self.C.astype(self.sformat)
         self.log.info("Characterisation matching done. C matrix created")
 
     def prepare_matching_load_parameters(self):
@@ -2824,7 +2873,7 @@ class Ecospold2Matrix(object):
                     j.cas = j.cas.str.replace('^[0]*','')
                 except AttributeError:
                     pass
-                j.ix[:, headers] = j.ix[:, headers].fillna('')
+                j.loc[:, headers] = j.loc[:, headers].fillna('')
                 j = j.set_index(headers).stack(dropna=True).reset_index(-1)
                 j.columns=['impactId','factorValue']
 
@@ -3637,13 +3686,22 @@ class Ecospold2Matrix(object):
         self.C = pd.pivot_table(obs2char,
                            values='factorValue',
                            columns='flowId',
-                           index='impactId').reindex_axis(self.STR.index, 1)
-        self.C = self.C.reindex_axis(self.IMP.index, 0).fillna(0)
+                           index='impactId').reindex(self.STR.index, axis=1)
+        self.C = self.C.reindex(self.IMP.index, axis=0)
 
+
+
+        # TODO: is this step necessary?
         # Reorganize elementary flows to follow STR order
         Forg = self.F.fillna(0)
-        self.F = self.F.reindex_axis(self.STR.ix[:, 'dsid'].values, 0).fillna(0)
+        self.F = self.F.reindex(self.STR.loc[:, 'dsid'].values, axis=0)
         self.F.index = self.STR.index.copy()
+
+        if self.nan2null:
+            self.C = self.C.fillna(0.)
+            self.F = self.F.fillna(0.)
+        self.C = self.C.astype(self.sformat)
+        self.F = self.F.astype(self.sformat)
 
         # safety assertions
         assert(np.allclose(self.F.values.sum(), Forg.values.sum()))
@@ -3687,10 +3745,10 @@ class Ecospold2Matrix(object):
             for i, row in label.iterrows():
                 if not row['ardaid'] > 0:
                     anId +=1
-                    label.ix[i,'ardaid'] = anId
+                    label.loc[i,'ardaid'] = anId
 
             # Make sure all Ids are unique to start with
-            if len(label.ix[:, column].unique()) != len(label.ix[:, column]):
+            if len(label.loc[:, column].unique()) != len(label.loc[:, column]):
                self.log.error('There are duplicate Ids in {}'.format(name))
 
             return label
