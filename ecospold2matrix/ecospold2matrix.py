@@ -72,7 +72,7 @@ try:
 except:
     from version import __version__
 # pylint: disable-msg=C0103
-
+import pdb
 
 class Ecospold2Matrix(object):
     """
@@ -1587,15 +1587,18 @@ class Ecospold2Matrix(object):
         self.PRO = self.PRO.merge(self.products,
                                             how='left',
                                             on='productId')
-
         # add data from self.activities
         self.PRO = self.PRO.merge(self.activities,
                                             how='left',
-                                            on='activityId')
+                                            on='activityId',
+                                            suffixes=('', '_y'))
+
+        # Remove duplicate columns
+        self.PRO.drop(self.PRO.filter(regex='_y$').columns.tolist(), axis=1, inplace=True)
 
         # Final touches and re-establish indexes as before
         self.PRO = self.PRO.drop('unitId', axis=1).set_index('index')
-
+        pdb.set_trace()
         # Re-sort processes (in fix-methods altered order/inserted rows)
         self.PRO = self.PRO.sort_values(by=self.PRO_order)
         self.STR = self.STR.sort_values(by=self.STR_order)
