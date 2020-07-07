@@ -1684,7 +1684,16 @@ class Ecospold2Matrix(object):
             # identified more crudely based on string recognition, and their
             # rows forced positive in the A-matrix
             bo_cutoff = self.PRO.activityName.str.contains(self.__CUTOFFTXT)
+
+            # The follwing statement is not allowed with:
+            # TypeError: SparseArray does not support item assignment via setitem
+            # self.A.loc[bo_cutoff,:] = self.A.loc[bo_cutoff,:].abs()
+            # Therefore convert to dense and back. This is easier in columns but taking the Transpose directly
+            # takes too long.
+            dtypes = self.A.dtypes
+            self.A = self.A.sparse.to_dense()
             self.A.loc[bo_cutoff,:] = self.A.loc[bo_cutoff,:].abs()
+            self.A = self.A.astype(dtypes)
 
         if self.force_all_positive:
             # More foreceful postprocessing, e.g., if suspicious negative flows
