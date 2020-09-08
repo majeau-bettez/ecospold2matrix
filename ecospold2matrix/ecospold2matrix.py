@@ -73,7 +73,6 @@ except:
     from version import __version__
 # pylint: disable-msg=C0103
 
-
 class Ecospold2Matrix(object):
     """
     Defines a parser object that holds all project parameters and processes the
@@ -1587,15 +1586,17 @@ class Ecospold2Matrix(object):
         self.PRO = self.PRO.merge(self.products,
                                             how='left',
                                             on='productId')
-
         # add data from self.activities
         self.PRO = self.PRO.merge(self.activities,
                                             how='left',
-                                            on='activityId')
+                                            on='activityId',
+                                            suffixes=('', '_y'))
+
+        # Remove duplicate columns
+        self.PRO.drop(self.PRO.filter(regex='_y$').columns.tolist(), axis=1, inplace=True)
 
         # Final touches and re-establish indexes as before
         self.PRO = self.PRO.drop('unitId', axis=1).set_index('index')
-
         # Re-sort processes (in fix-methods altered order/inserted rows)
         self.PRO = self.PRO.sort_values(by=self.PRO_order)
         self.STR = self.STR.sort_values(by=self.STR_order)
@@ -1683,7 +1684,16 @@ class Ecospold2Matrix(object):
             # identified more crudely based on string recognition, and their
             # rows forced positive in the A-matrix
             bo_cutoff = self.PRO.activityName.str.contains(self.__CUTOFFTXT)
+
+            # The follwing statement is not allowed with:
+            # TypeError: SparseArray does not support item assignment via setitem
+            # self.A.loc[bo_cutoff,:] = self.A.loc[bo_cutoff,:].abs()
+            # Therefore convert to dense and back. This is easier in columns but taking the Transpose directly
+            # takes too long.
+            dtypes = self.A.dtypes
+            self.A = self.A.sparse.to_dense()
             self.A.loc[bo_cutoff,:] = self.A.loc[bo_cutoff,:].abs()
+            self.A = self.A.astype(dtypes)
 
         if self.force_all_positive:
             # More foreceful postprocessing, e.g., if suspicious negative flows
