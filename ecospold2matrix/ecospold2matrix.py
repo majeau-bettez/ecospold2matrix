@@ -96,6 +96,7 @@ class Ecospold2Matrix(object):
             ['Undefined', 'New', 'Modern', 'Current', 'Old', 'Outdated'],
             index=[0, 1, 2, 3, 4, 5])
     __CUTOFFTXT ="Recycled Content cut-off"
+    __SYNONYMS_IMPACT_UNITS = {'unitName' : 'impact_score_unit'}
 
     def __init__(self, sys_dir, project_name, out_dir='.', lci_dir=None,
             positive_waste=False, nan2null=True, PRO_properties=("dry mass", "wet mass"),
@@ -1575,23 +1576,16 @@ class Ecospold2Matrix(object):
         self.elementary_flows.index = superindex
 
         # add data from outflows (production volumes)
-        self.PRO = self.PRO.merge(self.outflows[['productionVolume']],
-                left_index=True, right_index=True, how='left')
-
-
+        self.PRO = self.PRO.merge(self.outflows[['productionVolume']], left_index=True, right_index=True, how='left')
         self.PRO = self.PRO.reset_index()
-
         self.products.index.name = None
 
         # add data from self.products
-        self.PRO = self.PRO.merge(self.products,
-                                            how='left',
-                                            on='productId')
+        self.PRO = self.PRO.merge(self.products, how='left', on='productId')
 
-        # add data from self.activities
-        self.PRO = self.PRO.merge(self.activities,
-                                            how='left',
-                                            on='activityId')
+        # add data from self.activities, drop any duplicate column
+        self.PRO = self.PRO.merge(self.activities, how='left', on='activityId', suffixes=(None, '_duplicate'))
+        self.PRO.loc[:, ~ self.PRO.columns.str.endswith('_duplicate')]
 
         # Final touches and re-establish indexes as before
         self.PRO = self.PRO.drop('unitId', axis=1).set_index('index')
@@ -2421,29 +2415,34 @@ class Ecospold2Matrix(object):
         # Read and clean units
         units = pd.read_excel(self.characterisation_file, 'units')
         units, __ = clean_up_columns(units)
+        units = units.rename(columns=self.__SYNONYMS_IMPACT_UNITS)
+
 
         # Read and clean characterisation factors
         cf = pd.read_excel(self.characterisation_file, 'CFs')
         cf, col_version_numbers = clean_up_columns(cf)
 
+        if 'CF' not in cf.columns:  # as of ecoinvent 3.7.1, CF is already named CF, helpfully without version number
 
-        # Try to find column with the matching CF and filename version number
-        # (e.g. CF 3.3 for LCIA_Implementation_3.3.xlsx)
-        file_version = non_decimal.sub('', basename(self.characterisation_file))
-        try:
-            cf_col = col_version_numbers.index(file_version)
-            msg = "Will use column {}, named {}, for characterisation factors"
-            self.log.info(msg.format(cf_col, cf.columns[cf_col]))
-        except:
-            cf_col = -3
-            msg = ("Could not match file version {} with CF versions."
-                   " By default will use {}.")
-            self.log.warning(msg.format(file_version, cf.columns[cf_col]))
+            # If annoying version number, try to find the right column and replace
+            #
+            # Try to find column with the matching CF and filename version number
+            # (e.g. CF 3.3 for LCIA_Implementation_3.3.xlsx)
+            file_version = non_decimal.sub('', basename(self.characterisation_file))
+            try:
+                cf_col = col_version_numbers.index(file_version)
+                msg = "Will use column {}, named {}, for characterisation factors"
+                self.log.info(msg.format(cf_col, cf.columns[cf_col]))
+            except:
+                cf_col = -3
+                msg = ("Could not match file version {} with CF versions."
+                       " By default will use {}.")
+                self.log.warning(msg.format(file_version, cf.columns[cf_col]))
 
-        # Rename characterisation factor column
-        cols = cf.columns.tolist()
-        cols[cf_col] = 'CF'
-        cf.columns = cols
+            # Rename characterisation factor column
+            cols = cf.columns.tolist()
+            cols[cf_col] = 'CF'
+            cf.columns = cols
         sep = '; '
 
         self.log.info("Starting characterisation matching")
