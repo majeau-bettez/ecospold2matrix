@@ -805,7 +805,7 @@ class Ecospold2Matrix(object):
 
         # Parse XML file with activity names
         activity_name_file = os.path.join(self.sys_dir, 'MasterData', self.__ACTIVITYNAMES)
-        with open(activity_name_file, 'r') as f:
+        with open(activity_name_file, 'r', encoding='utf-8') as f:
             root = objectify.parse(f).getroot()
         names = dict()
         for act in root.activityName:
@@ -2429,12 +2429,14 @@ class Ecospold2Matrix(object):
             # Try to find column with the matching CF and filename version number
             # (e.g. CF 3.3 for LCIA_Implementation_3.3.xlsx)
             file_version = non_decimal.sub('', basename(self.characterisation_file))
-            try:
-                cf_col = col_version_numbers.index(file_version)
+            cf_columns = [i for i in cf.columns if 'CF' in i]
+            if 'CF_' + file_version in cf_columns:
+                cf_col = cf.columns.get_loc('CF_' + file_version)
                 msg = "Will use column {}, named {}, for characterisation factors"
                 self.log.info(msg.format(cf_col, cf.columns[cf_col]))
-            except:
-                cf_col = -3
+            else:
+                # If Error popping here, ecoinvent probably changed the name format of the columns in the characterisation file
+                cf_col = cf.columns.get_loc('CF_' + str(max([int(non_decimal.sub('', i)) for i in cf_columns])))
                 msg = ("Could not match file version {} with CF versions."
                        " By default will use {}.")
                 self.log.warning(msg.format(file_version, cf.columns[cf_col]))
