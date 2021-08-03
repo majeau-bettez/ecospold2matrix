@@ -753,6 +753,7 @@ class Ecospold2Matrix(object):
         # Convert this list into a dataFrame
         self.products = pd.DataFrame(pro_list)
         self.products.index = self.products['productId']
+        self.products.index.name = None
 
         # Log event
         sha1 = self.__hash_file(fp)
