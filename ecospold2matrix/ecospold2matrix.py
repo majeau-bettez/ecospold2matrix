@@ -1170,7 +1170,7 @@ class Ecospold2Matrix(object):
                             else:
                                 try:
                                     cx = self._prop_dict[prop.get('propertyId')]
-                                    self.PRO.loc[file_index, cx] = prop.get('amount')
+                                    PRO.loc[file_index, cx] = prop.get('amount')
                                 except KeyError:
                                     pass
                 except AttributeError:
