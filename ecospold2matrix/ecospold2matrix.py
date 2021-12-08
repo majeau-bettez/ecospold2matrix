@@ -96,7 +96,8 @@ class Ecospold2Matrix(object):
             ['Undefined', 'New', 'Modern', 'Current', 'Old', 'Outdated'],
             index=[0, 1, 2, 3, 4, 5])
     __CUTOFFTXT ="Recycled Content cut-off"
-    __SYNONYMS_IMPACT_UNITS = {'unitName' : 'impact_score_unit'}
+    __SYNONYMS_IMPACT_UNITS = {'unitName': 'impact_score_unit',
+                               'Unit': 'impact_score_unit'}
 
     def __init__(self, sys_dir, project_name, out_dir='.', lci_dir=None,
             positive_waste=False, nan2null=True, PRO_properties=("dry mass", "wet mass"),
@@ -411,10 +412,10 @@ class Ecospold2Matrix(object):
         if with_absolute_flows:
             self.scale_up_AF()
 
-
         if self.characterisation_file is not None:
             print("starting characterisation")
-            if 'LCIA_implementation' in self.characterisation_file:
+            if ('LCIA_implementation' in self.characterisation_file or
+                    'LCIA Implementation' in self.characterisation_file):
                 self.log.info("Characterisation file seems to be ecoinvent"
                               " LCIA implementation. Will apply simple name"
                               " matching")
@@ -2414,19 +2415,22 @@ class Ecospold2Matrix(object):
             return df, col_version_numbers
 
         # Read and clean units
-        units = pd.read_excel(self.characterisation_file, 'units')
+        cf_file = pd.read_excel(self.characterisation_file, None)
+        if 'units' in cf_file.keys():
+            units = cf_file['units']
+        elif 'Indicators' in cf_file.keys():
+            units = cf_file['Indicators']
+        else:
+            print(cf_file.keys())
         units, __ = clean_up_columns(units)
         units = units.rename(columns=self.__SYNONYMS_IMPACT_UNITS)
 
-
         # Read and clean characterisation factors
-        cf = pd.read_excel(self.characterisation_file, 'CFs')
+        cf = cf_file['CFs']
         cf, col_version_numbers = clean_up_columns(cf)
 
         if 'CF' not in cf.columns:  # as of ecoinvent 3.7.1, CF is already named CF, helpfully without version number
-
             # If annoying version number, try to find the right column and replace
-            #
             # Try to find column with the matching CF and filename version number
             # (e.g. CF 3.3 for LCIA_Implementation_3.3.xlsx)
             file_version = non_decimal.sub('', basename(self.characterisation_file))
@@ -2494,18 +2498,34 @@ class Ecospold2Matrix(object):
                     encoding='utf-8')
 
         # Generate IMP labels
-        C_long['impact_label'] = (C_long.method + sep
-                                  + C_long.category + sep
-                                  + C_long.indicator + sep
-                                  + C_long.impact_score_unit)
-        C_long.to_csv('C_long', sep='|', encoding='utf-8')
+        eco_version = list(set([int(i) for i in self.characterisation_file if i.isdigit() and i != '3']))[0]
+        if eco_version >= 8:
+            # only thing that changes are the caps ecoinvent decided to add from 3.8 onwards
+            C_long['impact_label'] = (C_long.Method + sep
+                                      + C_long.Category + sep
+                                      + C_long.Indicator + sep
+                                      + C_long.impact_score_unit)
+            C_long.to_csv('C_long', sep='|', encoding='utf-8')
 
-        self.IMP = C_long[['impact_label',
-                           'method',
-                           'category',
-                           'indicator',
-                           'impact_score_unit']].drop_duplicates()
-        self.IMP.set_index('impact_label', inplace=True)
+            self.IMP = C_long[['impact_label',
+                               'Method',
+                               'Category',
+                               'Indicator',
+                               'impact_score_unit']].drop_duplicates()
+            self.IMP.set_index('impact_label', inplace=True)
+        else:
+            C_long['impact_label'] = (C_long.method + sep
+                                      + C_long.category + sep
+                                      + C_long.indicator + sep
+                                      + C_long.impact_score_unit)
+            C_long.to_csv('C_long', sep='|', encoding='utf-8')
+
+            self.IMP = C_long[['impact_label',
+                               'method',
+                               'category',
+                               'indicator',
+                               'impact_score_unit']].drop_duplicates()
+            self.IMP.set_index('impact_label', inplace=True)
 
         # Pivot and reindex to generate characterisation matrix
         self.C = pd.pivot_table(C_long,
