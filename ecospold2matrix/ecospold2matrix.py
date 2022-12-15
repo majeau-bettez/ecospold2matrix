@@ -413,7 +413,6 @@ class Ecospold2Matrix(object):
             self.scale_up_AF()
 
         if self.characterisation_file is not None:
-            print("starting characterisation")
             if ('LCIA_implementation' in self.characterisation_file or
                     'LCIA Implementation' in self.characterisation_file):
                 self.log.info("Characterisation file seems to be ecoinvent"
@@ -1679,7 +1678,11 @@ class Ecospold2Matrix(object):
             # identified more crudely based on string recognition, and their
             # rows forced positive in the A-matrix
             bo_cutoff = self.PRO.activityName.str.contains(self.__CUTOFFTXT)
+            # quick return to dense to be able to use indexes
+            self.A = self.A.sparse.to_dense()
             self.A.loc[bo_cutoff,:] = self.A.loc[bo_cutoff,:].abs()
+            # compress again
+            self.A = self.A.astype(self.sformat)
 
         if self.force_all_positive:
             # More foreceful postprocessing, e.g., if suspicious negative flows
@@ -2410,6 +2413,88 @@ class Ecospold2Matrix(object):
                 Also, return a list of all numbers in columns
             """
             df.columns = [x.strip().replace(' ', '_') for x in df.columns]
+            col_version_numbers = [non_decimal.sub('', x) for x in df.columns]
+            df.columns = [x.replace('.', '') for x in df.columns]
+            return df, col_version_numbers
+
+        # Read and clean units
+        cf_file = pd.read_excel(self.characterisation_file, None)
+        if 'units' in cf_file.keys():
+            units = cf_file['units']
+        elif 'Indicators' in cf_file.keys():
+            units = cf_file['Indicators']
+        else:
+            print(cf_file.keys())
+        units, __ = clean_up_columns(units)
+        units = units.rename(columns=self.__SYNONYMS_IMPACT_UNITS)
+        sep = '; '
+        units.index = [units.Method[i] + sep + units.Category[i] + sep + units.Indicator[i] for i in units.index]
+
+        # Read and clean characterisation factors
+        cf = cf_file['CFs']
+        cf, col_version_numbers = clean_up_columns(cf)
+
+        if 'CF' not in cf.columns:  # as of ecoinvent 3.7.1, CF is already named CF, helpfully without version number
+            # If annoying version number, try to find the right column and replace
+            # Try to find column with the matching CF and filename version number
+            # (e.g. CF 3.3 for LCIA_Implementation_3.3.xlsx)
+            file_version = non_decimal.sub('', basename(self.characterisation_file))
+            cf_columns = [i for i in cf.columns if 'CF' in i]
+            if 'CF_' + file_version in cf_columns:
+                cf_col = cf.columns.get_loc('CF_' + file_version)
+                msg = "Will use column {}, named {}, for characterisation factors"
+                self.log.info(msg.format(cf_col, cf.columns[cf_col]))
+            else:
+                # If Error popping here, ecoinvent probably changed the name format of the columns in the characterisation file
+                cf_col = cf.columns.get_loc('CF_' + str(max([int(non_decimal.sub('', i)) for i in cf_columns])))
+                msg = ("Could not match file version {} with CF versions."
+                       " By default will use {}.")
+                self.log.warning(msg.format(file_version, cf.columns[cf_col]))
+
+            # Rename characterisation factor column
+            cols = cf.columns.tolist()
+            cols[cf_col] = 'CF'
+            cf.columns = cols
+
+        self.log.info("Starting characterisation matching")
+        # Export to sqlite for matching
+        cf.to_sql('char', self.conn, if_exists='replace')
+        units.to_sql('units', self.conn, if_exists='replace')
+        self.STR.to_sql('stressors',
+                        self.conn,
+                        index_label='stressorId',
+                        if_exists='replace')
+
+        merging = cf.merge(self.STR, left_on=['Name', 'Compartment', 'Subcompartment'],
+                           right_on=['name', 'comp', 'subcomp'])
+        self.C = pd.pivot_table(merging,
+                                values='CF',
+                                columns='id',
+                                index=['Method', 'Category', 'Indicator'])
+        self.C.index = [i[0] + sep + i[1] + sep + i[2] for i in self.C.index]
+        self.C = self.C.loc[~self.C.index.duplicated()]
+
+        self.IMP = units.copy()
+        self.IMP = self.IMP.drop_duplicates()
+
+        self.C = self.C.reindex(self.IMP.index).reindex(self.STR.index, axis=1)
+        if self.nan2null:
+            self.C = self.C.fillna(0.)
+
+        self.C = self.C.astype(self.sformat)
+        self.log.info("Characterisation matching done. C matrix created")
+
+    def deprecated_simple_characterisation_matching(self):
+
+        # Useful stuff
+        non_decimal = re.compile(r'[^0-9]')
+        basename = os.path.basename
+
+        def clean_up_columns(df):
+            """ Remove spaces, whitespace, and periods from column names
+                Also, return a list of all numbers in columns
+            """
+            df.columns = [x.strip().replace(' ', '_') for x in df.columns]
             col_version_numbers =  [non_decimal.sub('', x) for x in df.columns]
             df.columns = [x.replace('.', '') for x in df.columns]
             return df, col_version_numbers
@@ -2479,7 +2564,6 @@ class Ecospold2Matrix(object):
             C_long = pd.read_sql(sql_cmd, self.conn)
 
         except:
-
             # Match only based on name, comp and subcomp, not units, since ecoinvent 3.4
             sql_cmd = """ SELECT s.name, s.comp, s.subcomp, s.unit, s.stressorId,
                                  c.method, c.category, c.indicator, c.CF,
